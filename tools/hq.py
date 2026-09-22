@@ -30,7 +30,7 @@ STEP = {"step-1": 1, "step-2": 2, "step-3": 3, "step-4": 4, "step-5": 5, "submit
 
 
 def db():
-    raw = os.environ.get("GAUNTLET_SA_JSON", "").strip()
+    raw = os.environ.get("GAUNTLET_SA_JSON", "").strip().strip("'\"").strip()
     if raw:
         info = json.loads(raw if raw.startswith("{") else base64.b64decode(raw))
         cred = credentials.Certificate(info)
