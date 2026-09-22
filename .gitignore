@@ -1,0 +1,24 @@
+# ── Secrets ───────────────────────────────────────────────
+# Firebase service-account private key. NEVER commit. Bypasses
+# Firestore security rules; treat it like a password.
+gauntlet-hq-*.json
+*-service-account*.json
+*.serviceaccount.json
+
+# ── Generated / scratch data ──────────────────────────────
+dashboard_data.json
+
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.pyc
+
+# ── OS / editor ───────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+ledger-backups/
+
+# Candidate PII exports — never push
+*.csv
+c7_reengagement_campaign.md
+icp-event-scan/state.json
