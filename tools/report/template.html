@@ -210,7 +210,7 @@ td.num{font-family:var(--mono)}
       <h3>CCAT velocity by application month</h3>
       <p class="why">Share of applicants who finish the CCAT within 14 days of applying. This is the metric the nurture sequences move.</p>
       <div class="chart" id="vel"></div>
-      <div class="sub">Month-over-month change, in percentage points</div>
+      <div class="sub">Month-over-month change</div>
       <div class="chart" id="vel-mom"></div>
       <div class="read" id="vel-read"></div>
       <p class="foot">Grouped by <code>createdAt</code> month across all cohorts. The current month is still maturing and is drawn lighter.</p>
@@ -579,7 +579,7 @@ const isSurge = v => v.n >= 2 * vMed;
 const kfmt = n => n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n);
 const monLab = v => { const [yy, mm] = v.month.split("-"); return [new Date(+yy, +mm - 1, 1).toLocaleString("en-US", { month: "short" }), yy]; };
 mount("vel", (host, W) => {
-  const H = 274, m = { l: 36, r: 8, t: 48, b: 50 };
+  const H = 262, m = { l: 36, r: 8, t: 30, b: 50 };
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
   const vmax = 60, y = v => H - m.b - v / vmax * (H - m.t - m.b);
   const slot = (W - m.l - m.r) / VEL.length, bw = Math.min(26, slot - 6);
@@ -596,19 +596,12 @@ mount("vel", (host, W) => {
     txt(svg, bx + bw / 2, H - m.b + 14, lab, { "text-anchor": "middle" });
     txt(svg, bx + bw / 2, H - m.b + 27, kfmt(v.n), { "text-anchor": "middle", style: "fill:var(--ink3);font-size:10px" });
     if (lab === "Jan" || i === 0) txt(svg, bx + bw / 2, H - m.b + 42, yy, { "text-anchor": "middle" });
-    if (slot > 34) txt(svg, bx + bw / 2, y(r) - 5, Math.round(r) + (v.complete ? "" : "+"), { "text-anchor": "middle", class: "val" });
+    if (slot > 34) txt(svg, bx + bw / 2, y(r) - 5, Math.round(r) + "%" + (v.complete ? "" : "+"), { "text-anchor": "middle", class: "val" });
     const hit = s("rect", { x: m.l + i * slot, y: m.t, width: slot, height: H - m.t - m.b, fill: "transparent" }, svg);
     hit.addEventListener("pointermove", e => tip.show(`<div class="t">${lab} ${yy}${v.complete ? "" : " (maturing)"}</div>${row(isSurge(v) ? "var(--neg)" : "var(--neu)", "CCAT ≤14d", r.toFixed(1) + "%")}${row(null, "CCAT ever", pct(v.ever, v.n, 1))}${row(null, "applicants", fmt(v.n))}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
     hit.addEventListener("pointerleave", () => tip.hide());
   });
   txt(svg, m.l - 6, H - m.b + 27, "apps", { "text-anchor": "end", style: "fill:var(--ink3);font-size:10px" });
-  // streak bracket: consecutive rises ending at the latest month
-  let k = VEL.length - 1; while (k > 0 && vRate(VEL[k]) > vRate(VEL[k - 1])) k--;
-  if (VEL.length - 1 - k >= 2) {
-    const x1 = m.l + (k + 1) * slot + 4, x2 = m.l + VEL.length * slot - 4, yb = m.t - 28;
-    s("path", { d: `M${x1},${yb + 6}V${yb}H${x2}V${yb + 6}`, fill: "none", stroke: "var(--pos-ink)", "stroke-width": 1.5 }, svg);
-    txt(svg, (x1 + x2) / 2, yb - 4, `${VEL.length - 1 - k} straight months up`, { "text-anchor": "middle", class: "lbl", style: "fill:var(--pos-ink)" });
-  }
 });
 (() => {
   const done = VEL.filter(v => v.complete), surge = done.filter(isSurge), calm = done.filter(v => !isSurge(v));
@@ -631,7 +624,7 @@ mount("vel-mom", (host, W) => {
   const r = v => 100 * v.within14 / v.n, ch = V.map((v, i) => i ? r(v) - r(V[i - 1]) : null);
   const lim = Math.max(10, Math.ceil(Math.max(...ch.filter(c => c != null).map(Math.abs)) / 10) * 10);
   const y = v => m.t + (lim - v) / (2 * lim) * (H - m.t - m.b);
-  for (const t of [-lim, -lim / 2, 0, lim / 2, lim]) { s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t === 0 ? "var(--ink3)" : "var(--grid)" }, svg); txt(svg, m.l - 6, y(t) + 4, (t > 0 ? "+" : "") + Math.round(t), { "text-anchor": "end" }); }
+  for (const t of [-lim, -lim / 2, 0, lim / 2, lim]) { s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t === 0 ? "var(--ink3)" : "var(--grid)" }, svg); txt(svg, m.l - 6, y(t) + 4, (t > 0 ? "+" : "") + Math.round(t) + "%", { "text-anchor": "end" }); }
   const slot = (W - m.l - m.r) / V.length, bw = Math.min(24, slot - 6);
   V.forEach((v, i) => {
     const bx = m.l + i * slot + (slot - bw) / 2, [yy, mm] = v.month.split("-"), lab = new Date(+yy, +mm - 1, 1).toLocaleString("en-US", { month: "short" });
@@ -640,9 +633,9 @@ mount("vel-mom", (host, W) => {
     const up = c >= 0, h = Math.abs(y(c) - y(0)), col = up ? "var(--pos)" : "var(--neg)";
     const d = up ? vbar(bx, y(c), bw, h) : `M${bx},${y(0)}h${bw}v${Math.max(0, h - 4)}a4,4 0 0 1 -4,4h-${Math.max(0, bw - 8)}a4,4 0 0 1 -4,-4z`;
     s("path", { d, fill: col, opacity: v.complete ? 1 : .4 }, svg);
-    if (slot > 34) txt(svg, bx + bw / 2, up ? y(c) - 5 : y(c) + 13, (Math.round(c) > 0 ? "+" : "") + (Math.round(c) || 0), { "text-anchor": "middle", class: "val" });
+    if (slot > 34) txt(svg, bx + bw / 2, up ? y(c) - 5 : y(c) + 13, (Math.round(c) > 0 ? "+" : "") + (Math.round(c) || 0) + "%", { "text-anchor": "middle", class: "val" });
     const hit = s("rect", { x: m.l + i * slot, y: m.t, width: slot, height: H - m.t - m.b, fill: "transparent" }, svg);
-    hit.addEventListener("pointermove", e => tip.show(`<div class="t">${lab} ${yy} vs prior month${v.complete ? "" : " (maturing)"}</div>${row(col, "change", (up ? "+" : "") + c.toFixed(1) + " pts")}${row(null, "this month", r(v).toFixed(1) + "%")}${row(null, "prior month", r(V[i - 1]).toFixed(1) + "%")}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
+    hit.addEventListener("pointermove", e => tip.show(`<div class="t">${lab} ${yy} vs prior month${v.complete ? "" : " (maturing)"}</div>${row(col, "change", (up ? "+" : "") + c.toFixed(1) + "%")}${row(null, "this month", r(v).toFixed(1) + "%")}${row(null, "prior month", r(V[i - 1]).toFixed(1) + "%")}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
     hit.addEventListener("pointerleave", () => tip.hide());
   });
 });
