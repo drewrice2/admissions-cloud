@@ -155,9 +155,11 @@ td.num{font-family:var(--mono)}
       <p class="why">How to read it: each bar is 100% of one cohort's CCAT-takers, split by score band. The dark navy segment (40+) is the auto-advance pool. The bigger it is, the more acceptances the same number of applicants can produce.</p>
       <div class="legend" id="band-legend"></div>
       <div class="chart" id="bands"></div>
-      <div class="sub">Score distribution. The box is the middle 50% of scores, the tick is the median, the dot is the mean, and the whiskers run from the 10th to the 90th percentile. Grey lines mark the 32 / 35 / 40 cutoffs.</div>
-      <div class="chart" id="dist"></div>
       <p class="read" id="band-read"></p>
+      <div class="sub">Where the typical applicant lands against the cutoffs</div>
+      <p class="why">One row per cohort. The thick tick is the median score, the hollow dot is the mean, the shaded box holds the middle half of scores, and the whiskers run from the 10th to the 90th percentile. The grey lines are the policy cutoffs.</p>
+      <div class="chart" id="dist"></div>
+      <p class="read" id="dist-read"></p>
     </div>
 
   </div>
@@ -419,17 +421,19 @@ mount("bands", (host, W) => stackRows(host, W, COH.map(c => ({ label: c, v: D.ba
 (() => {
   const b = D.bands, sh = c => { const t = BANDS.reduce((a, k) => a + b[c][k[0]], 0); return Math.round(100 * b[c]["40+"] / t); };
   const need = sh("C4") / sh("C7");
-  document.getElementById("band-read").innerHTML = `<b>Takeaway: the 40+ share halved from C4 (${sh("C4")}%) to C6 (${sh("C6")}%) and has only recovered to ${sh("C7")}% (C7). We now need about ${need.toFixed(1)}× as many CCAT-takers as C4 did to find the same number of 40+ candidates.</b> The strip plot shows the whole distribution moved down, not just the low tail (median: C4 ${b.C4.dist.median}, C6 ${b.C6.dist.median}, C7 ${b.C7.dist.median}).`;
+  document.getElementById("band-read").innerHTML = `<b>Takeaway: the 40+ share halved from C4 (${sh("C4")}%) to C6 (${sh("C6")}%) and has only recovered to ${sh("C7")}% (C7). We now need about ${need.toFixed(1)}× as many CCAT-takers as C4 did to find the same number of 40+ candidates.</b>`;
+  const band = m => m >= 40 ? "auto-advance" : m >= 35 ? "35–39" : m >= 32 ? "the 32–34 retake zone" : "decline";
+  document.getElementById("dist-read").innerHTML = `<b>Takeaway: in C4 the typical applicant scored ${b.C4.dist.median}, right on the auto-advance line. Since C6 the typical applicant lands ${b.C4.dist.median - Math.max(b.C6.dist.median, b.C7.dist.median)}–${b.C4.dist.median - Math.min(b.C6.dist.median, b.C7.dist.median)} points lower (median C6 ${b.C6.dist.median}, C7 ${b.C7.dist.median}).</b> The whole box moved left, so this is a shift in who applies, not a handful of low scorers dragging the average.`;
 })();
 
 mount("dist", (host, W) => {
-  const cs = COH.filter(c => D.bands[c].dist), rh = 26, gap = 10, lw = 44, H = cs.length * (rh + gap) + 24;
+  const cs = COH.filter(c => D.bands[c].dist), rh = 26, gap = 10, lw = 44, H = cs.length * (rh + gap) + 40;
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
   const lo = 10, hi = 50, x = v => lw + (v - lo) / (hi - lo) * (W - lw - 12);
   for (const t of [10, 20, 30, 40, 50]) txt(svg, x(t), H - 6, t, { "text-anchor": "middle" });
-  for (const t of [32, 35, 40]) { s("line", { x1: x(t), x2: x(t), y1: 0, y2: H - 20, stroke: "var(--neutral)", "stroke-width": 1 }, svg); }
+  for (const [t, lab] of [[32, "32 decline below"], [35, "35"], [40, "40 auto-advance"]]) { s("line", { x1: x(t), x2: x(t), y1: 14, y2: H - 20, stroke: "var(--neutral)", "stroke-width": 1 }, svg); txt(svg, x(t) + (t === 32 ? -3 : 3), 10, lab, { "text-anchor": t === 32 ? "end" : "start", style: "font-size:10px" }); }
   cs.forEach((c, i) => {
-    const q = D.bands[c].dist, y0 = i * (rh + gap) + 4, cy = y0 + rh / 2;
+    const q = D.bands[c].dist, y0 = i * (rh + gap) + 20, cy = y0 + rh / 2;
     txt(svg, 0, cy + 4, c, { class: "lbl" });
     s("line", { x1: x(q.p10), x2: x(q.p90), y1: cy, y2: cy, stroke: cvar(c), "stroke-width": 2 }, svg);
     s("rect", { x: x(q.p25), y: y0 + 4, width: Math.max(2, x(q.p75) - x(q.p25)), height: rh - 8, rx: 4, fill: cvar(c), opacity: .3 }, svg);
