@@ -177,13 +177,7 @@ td.num{font-family:var(--mono)}
 
     <div class="card wide" data-spec="funnel_steps">
       <h3>Funnel step conversion by cohort</h3>
-      <p class="why">Each panel is one step of the funnel. The bar shows what percent of the people who reached that step made it to the next one, so the panels chain left to right:</p>
-      <ul class="why steps">
-        <li><b>Step 1: Applied → took CCAT.</b> Of everyone who applied, the percent who completed the CCAT.</li>
-        <li><b>Step 2: Took CCAT → accepted.</b> Of CCAT-takers, the percent we accepted (<code>adminDecision</code> accepted or GFA).</li>
-        <li><b>Step 3: Accepted → signed.</b> Of accepted candidates, the percent who signed the enrollment agreement.</li>
-        <li><b>Overall: applied → signed.</b> Steps 1 × 2 × 3: the percent of all applicants who became signed students.</li>
-      </ul>
+      <p class="read" id="fun-read"></p>
       <div class="legend" id="fun-legend"></div>
       <div class="chart" id="funnel"></div>
       <p class="foot">Hover a bar for the counts behind it. C4 is left off because it has no decision or contract data in Firestore. C5 acceptances are inferred from <code>status = step-6-approve</code>. C8 is still in progress (faded bars), and its records are created later in the form flow, which inflates its step 1 rate.</p>
@@ -522,6 +516,12 @@ mount("funnel", (host, W) => {
   });
 });
 
+(() => {
+  const F = D.funnel, r = (a, b) => 100 * a / b;
+  const st = c => [r(F[c].ccat, F[c].started), r(F[c].accepted, F[c].ccat), r(F[c].signed, F[c].accepted), r(F[c].signed, F[c].started)];
+  const a = st("C6"), b = st("C7"), f = x => x < 10 ? x.toFixed(1) : Math.round(x);
+  document.getElementById("fun-read").innerHTML = `<b>Takeaway: C7 beat C6 at the top of the funnel, not the bottom.</b> More applicants took the CCAT (${f(b[0])}% vs ${f(a[0])}%) and more CCAT-takers were accepted (${f(b[1])}% vs ${f(a[1])}%), while accepted → signed held flat (${f(b[2])}% vs ${f(a[2])}%). Net: ${f(b[3])}% of C7 applicants signed, against ${f(a[3])}% for C6.`;
+})();
 /* ---------- 3. band mix ---------- */
 const BANDS = [["<32", "var(--neg)", "<32 decline"], ["32-34", "var(--warn)", "32–34 retake zone"], ["35-39", "var(--neu)", "35–39"], ["40+", "var(--pos)", "40+ auto-advance"]];
 legend("band-legend", BANDS.map(b => [b[1], b[2]]));
