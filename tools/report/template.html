@@ -714,7 +714,7 @@ mount("retake", (host, W) => {
 (() => {
   const R = D.retake;
   const t40 = R.to40["32-34"], up = R.n - R.le0;
-  document.getElementById("retake-read").innerHTML = `<b>Takeaway: a retake is worth about +${R.median} points almost automatically (${pct(up, R.n)} improve), so a 40 on attempt 2 isn't the same signal as a 40 on attempt 1.</b> ${pct(t40[0], t40[1])} of the 32–34 retake zone clears 40 on the retake, which makes the retake window close to a coin flip into auto-advance. Consider a higher bar for retakers, or weighting attempt 1.`;
+  document.getElementById("retake-read").innerHTML = `<b>Takeaway: a retake is worth about +${R.median} points almost automatically (${pct(up, R.n)} improve), so a 40 on attempt 2 isn't the same signal as a 40 on attempt 1.</b> ${pct(t40[0], t40[1])} of the 32–34 retake zone clears 40 on the retake, which makes the retake window close to a coin flip into auto-advance. With a thin funnel that's useful volume, so the open question is whether retake admits perform like first-try 40s. Tag them and compare signing and completion.`;
   const t = R.to40, order = ["<32", "32-34", "35-39"];
   document.getElementById("retake-tbl").innerHTML = `<tr><th>First-attempt band</th><th>Retakers</th><th>Reached 40+ on retake</th></tr>` + order.filter(k => t[k]).map(k => `<tr><td>${k}</td><td class="num">${t[k][1]}</td><td class="num">${t[k][0]} (${pct(t[k][0], t[k][1])})</td></tr>`).join("");
 })();
@@ -813,7 +813,7 @@ mount("qual", (host, W) => countdown(host, W, "qual_cum", false));
     </ul></div>
     <div><h4>Suggestions</h4><ul>
       <li><b>Buy quality, not volume.</b> ${lowSrc.map(o => o.src).join(", ")} brought ${fmt(lowApps)} applicants at ${f0(Math.min(...lowSrc.map(q)))}–${f0(Math.max(...lowSrc.map(q)))}% 40+. Judge channels on 40+ yield, and shift budget toward HubSpot re-engagement and referrals.</li>
-      <li><b>Hold retakes to a higher bar.</b> Scores rise about ${R.median} points on a second try from practice alone, so a retake 40 is roughly a first-try ${40 - R.median}.</li>
+      <li><b>Keep the retake window, but track it.</b> With a thin funnel, retakes are a real volume lever: ${pct(R.to40["32-34"][0], R.to40["32-34"][1])} of the 32–34 zone clears 40 on a second try. Tag retake admits so we can see whether they sign and finish at the same rate as first-try 40s.</li>
       <li><b>Pull application volume forward.</b> The roster is capped by how many qualified applicants arrive before T-4w, not by how fast they sign. C8 is still ~${Math.round(-P.C8.today / 7)} weeks out, so top-of-funnel spend now is what fills it.</li>
     </ul></div></div>`;
 })();
