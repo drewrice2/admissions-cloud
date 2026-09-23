@@ -814,7 +814,7 @@ mount("qual", (host, W) => countdown(host, W, "qual_cum", false));
     <div><h4>Suggestions</h4><ul>
       <li><b>Buy quality, not volume.</b> ${lowSrc.map(o => o.src).join(", ")} brought ${fmt(lowApps)} applicants at ${f0(Math.min(...lowSrc.map(q)))}–${f0(Math.max(...lowSrc.map(q)))}% 40+. Judge channels on 40+ yield, and shift budget toward HubSpot re-engagement and referrals.</li>
       <li><b>Keep the retake window, but track it.</b> With a thin funnel, retakes are a real volume lever: ${pct(R.to40["32-34"][0], R.to40["32-34"][1])} of the 32–34 zone clears 40 on a second try. Tag retake admits so we can see whether they sign and finish at the same rate as first-try 40s.</li>
-      <li><b>Pull application volume forward.</b> The roster is capped by how many qualified applicants arrive before T-4w, not by how fast they sign. C8 is still ~${Math.round(-P.C8.today / 7)} weeks out, so top-of-funnel spend now is what fills it.</li>
+      <li><b>Find more 40+ applicants, earlier.</b> People sign within hours of being accepted, so class size is set by how many qualified applicants we find, not by follow-up. C7 finished with ${P.C7.qual_cum[TM.days]} qualified, and C8 has ${P.C8.qual_now} so far with ~${Math.round(-P.C8.today / 7)} weeks to go.</li>
     </ul></div></div>`;
 })();
 /* ---------- roadblocks ---------- */
