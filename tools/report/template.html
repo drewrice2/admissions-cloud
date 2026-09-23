@@ -152,7 +152,7 @@ td.num{font-family:var(--mono)}
 
     <div class="card wide">
       <h3>CCAT band mix by cohort</h3>
-      <p class="why">Share of CCAT-takers in each policy band. This is the quality of the top of the funnel, and it caps how many acceptances a given volume can produce.</p>
+      <p class="why">How to read it: each bar is 100% of one cohort's CCAT-takers, split by score band. The dark navy segment (40+) is the auto-advance pool. The bigger it is, the more acceptances the same number of applicants can produce.</p>
       <div class="legend" id="band-legend"></div>
       <div class="chart" id="bands"></div>
       <div class="sub">Score distribution. The box is the middle 50% of scores, the tick is the median, the dot is the mean, and the whiskers run from the 10th to the 90th percentile. Grey lines mark the 32 / 35 / 40 cutoffs.</div>
@@ -418,7 +418,8 @@ const onBand = k => (k === "<32" ? "var(--ink)" : "#fff");
 mount("bands", (host, W) => stackRows(host, W, COH.map(c => ({ label: c, v: D.bands[c] })), BANDS, { normalize: true, inkOn: k => document.documentElement.matches('[data-theme="dark"]') || (matchMedia("(prefers-color-scheme: dark)").matches && !document.documentElement.matches('[data-theme="light"]')) ? (k === "40+" ? "#10141a" : "#fff") : onBand(k) }));
 (() => {
   const b = D.bands, sh = c => { const t = BANDS.reduce((a, k) => a + b[c][k[0]], 0); return Math.round(100 * b[c]["40+"] / t); };
-  document.getElementById("band-read").innerHTML = `The share scoring 40+ fell from <b>${sh("C4")}%</b> in C4 to <b>${sh("C6")}%</b> in C6, then partly recovered in C7 (${sh("C7")}%). Median score: C4 ${b.C4.dist.median}, C6 ${b.C6.dist.median}, C7 ${b.C7.dist.median}. The whole distribution shifted down, not just the low tail.`;
+  const need = sh("C4") / sh("C7");
+  document.getElementById("band-read").innerHTML = `<b>Takeaway: the 40+ share halved from C4 (${sh("C4")}%) to C6 (${sh("C6")}%) and has only recovered to ${sh("C7")}% (C7). We now need about ${need.toFixed(1)}× as many CCAT-takers as C4 did to find the same number of 40+ candidates.</b> The strip plot shows the whole distribution moved down, not just the low tail (median: C4 ${b.C4.dist.median}, C6 ${b.C6.dist.median}, C7 ${b.C7.dist.median}).`;
 })();
 
 mount("dist", (host, W) => {
