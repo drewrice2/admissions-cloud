@@ -36,6 +36,16 @@ def score(a):
     if isinstance(o,dict) and isinstance(o.get("score"),(int,float)): return o["score"]
     v = a.get("ccatScore"); return v if isinstance(v,(int,float)) else None
 def accepted(a): return a.get("adminDecision") in ("accepted","gfa-accepted") or (a.get("adminDecision") in (None,"") and a.get("status") in ("step-6-approve","approved"))
+def first_ccat(a): return ts(a.get("ccat1CompletedAt")) or ts(a.get("ccatCompletedAt"))
+def qual_date(a):
+    """When the applicant first reached 40+ (None if never). Attempt 1, else the retake, else the override/latest."""
+    sc = score(a)
+    if sc is None or sc < 40: return None
+    s1, s2 = a.get("ccat1Score"), a.get("ccat2Score")
+    if isinstance(s1, (int, float)) and s1 >= 40: return ts(a.get("ccat1CompletedAt")) or ts(a.get("ccatCompletedAt"))
+    if isinstance(s2, (int, float)) and s2 >= 40: return ts(a.get("ccat2CompletedAt")) or ts(a.get("ccatCompletedAt"))
+    return ts(a.get("ccatCompletedAt")) or ts((a.get("ccat") or {}).get("updatedAt"))
+def signed_date(a): return ts(a.get("contractSignedAt")) or ts(a.get("contractSyncedAt"))
 def rank(a): return (a.get("adminDecision") not in (None,""), score(a) is not None, STEP.get(a.get("status"),0), a.get("updatedAt") or "")
 # dedupe by (cohort,email)
 best = {}
@@ -87,6 +97,7 @@ for c in COH:
     keep = [a for a in by[c] if ts(a.get("createdAt")) and (ts(a["createdAt"]).date()-anch[c]).days >= -7]
     ad = [(ts(a["createdAt"]).date()-st).days for a in keep]
     cdd = [((ts(a.get("ccat1CompletedAt")) or ts(a.get("ccatCompletedAt"))).date()-st).days for a in keep if (ts(a.get("ccat1CompletedAt")) or ts(a.get("ccatCompletedAt")))]
+    qd = [(q.date()-st).days for q in (qual_date(a) for a in keep) if q]
     today = (NOW.date()-st).days
     last = min(0, today)
     rng = range(-T0, last+1)
@@ -99,11 +110,29 @@ for c in COH:
     tm[LAB[c]] = {"start": START[c], "today": today, "cum": [sum(1 for x in ad if x <= o) for o in rng],
                   "ccat_cum": [sum(1 for x in cdd if x <= o) for o in rng], "now": len(ad), "ccat_now": len(cdd),
                   "signed_cum": [sum(1 for x in sd if x <= o) for o in rng], "signed_total": len(signers),
-                  "signed_dated": sum(1 for t in sdt if t), "signed_after_start": sum(1 for x in sd if x > 0)}
+                  "signed_dated": sum(1 for t in sdt if t), "signed_after_start": sum(1 for x in sd if x > 0),
+                  "qual_cum": [sum(1 for x in qd if x <= o) for o in rng], "qual_now": len(qd)}
 # DocuSign-exact confirmed counts at weeks-before-Day-1, from "ledger-v0-summary" (Drive, built 2026-09-15).
 # C6 and C7 are complete cohorts, so these checkpoints are final.
 LEDGER = {"C6": {10: 13, 8: 13, 6: 13, 4: 14, 2: 25, 1: 38, 0: 50}, "C7": {10: 4, 8: 10, 6: 14, 4: 21, 2: 31, 1: 38, 0: 54}}
 out["tminus"] = {"days": T0, "cohorts": tm, "ledger": LEDGER}
+
+# Weekly brief: org-wide activity (all C4-C8 records, deduped) in rolling 7-day windows ending now.
+WK = 12
+def wk_counts(dates):
+    c = [0] * WK
+    for t in dates:
+        if not t: continue
+        k = (NOW - t).days // 7
+        if 0 <= k < WK: c[WK - 1 - k] += 1
+    return c
+out["weekly"] = {"weeks": WK, "metrics": [
+    {"key": "apps", "label": "New applications", "series": wk_counts(ts(a.get("createdAt")) for a in R)},
+    {"key": "ccat", "label": "CCATs completed", "series": wk_counts(first_ccat(a) for a in R)},
+    {"key": "qual", "label": "New 40+ scorers", "series": wk_counts(qual_date(a) for a in R)},
+    {"key": "acc", "label": "Accepted", "series": wk_counts(ts(a.get("admissionsUpdatedAt")) for a in R if accepted(a)), "approx": True},
+    {"key": "signed", "label": "Signed", "series": wk_counts(signed_date(a) for a in R if accepted(a) and a.get("contractSigned"))},
+]}
 
 # 2. Funnel rates
 fun = {}

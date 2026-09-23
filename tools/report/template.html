@@ -60,6 +60,23 @@ section{display:flex;flex-direction:column;gap:18px}
 .tldr h4{margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
 .tldr ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
 .tldr .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+#weekly{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+#tiles{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.wk .top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.wk .d{font:500 12.5px var(--mono)}
+.wk .d.up{color:var(--good)} .wk .d.down{color:var(--crit)} .wk .d.flat{color:var(--ink3)}
+.wk svg{display:block;width:100%;height:28px}
+.specbtn{font:600 10.5px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink3);background:transparent;border:1px solid var(--line);border-radius:5px;padding:3px 6px;margin-left:8px;vertical-align:middle;cursor:help;position:relative}
+.specbtn:focus-visible{outline:2px solid var(--c4);outline-offset:1px}
+.specpop{position:absolute;z-index:20;left:0;top:calc(100% + 6px);width:min(440px,80vw);background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:10px 12px;font:12px/1.5 var(--sans);color:var(--ink);text-transform:none;letter-spacing:0;text-align:left;white-space:normal}
+.specpop dt{font-weight:600;color:var(--ink2);margin-top:6px}.specpop dt:first-child{margin-top:0}.specpop dd{margin:0}
+.specbtn:not(:hover):not(:focus) .specpop{display:none}
+details.spec{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 16px;font-size:13px}
+details.spec summary{cursor:pointer;font-weight:600;color:var(--ink2)}
+details.spec h4{margin:14px 0 4px;font-size:13.5px}
+details.spec dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:3px 12px}
+details.spec dt{color:var(--ink3);font-weight:600}details.spec dd{margin:0}
+details.spec code,.specpop code{font-size:11.5px}
 .sub{font-size:13px;font-weight:600;color:var(--ink2);margin-top:8px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink2)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -102,7 +119,12 @@ td.num{font-family:var(--mono)}
   <p class="lede">Cohort-over-cohort view of the admissions funnel, built from Firestore. Each plot is a candidate for the new HQ report tab. The numbers are real and deduplicated to one record per email per cohort. <code>duplicate</code> records are dropped.</p>
 </header>
 
-<div class="tiles" id="tiles"></div>
+<section>
+  <h2>This week</h2>
+  <p class="why" style="margin-top:-6px">Rolling 7 days ending at the data timestamp, across every cohort. The delta compares with the previous 7 days, and the sparkline shows the last 12 weeks. * Accepted is approximate until HQ writes a decision timestamp.</p>
+  <div class="tiles" id="weekly"></div>
+  <div class="tiles" id="tiles"></div>
+</section>
 
 <div class="card tldr">
   <h3>TL;DR</h3>
@@ -112,7 +134,14 @@ td.num{font-family:var(--mono)}
 <section>
   <h2>Cohort over cohort</h2>
   <div class="grid2">
-    <div class="card wide">
+    <div class="card wide" data-spec="qualified_pipeline">
+      <h3>Qualified pipeline: 40+ scorers counting down to cohort start</h3>
+      <p class="why">Cumulative number of applicants who have scored 40+ on the CCAT, by weeks before Day 1. This is the real ceiling on a cohort: a roster can't sign more people than the qualified pool it has found.</p>
+      <div class="legend" id="qual-legend"></div>
+      <div class="chart" id="qual"></div>
+      <p class="read" id="qual-read"></p>
+    </div>
+    <div class="card wide" data-spec="pacing">
       <h3>Pacing: cumulative volume counting down to cohort start</h3>
       <p class="why">This replaces "applications this week." Every cohort is set on the same countdown, from 11 weeks before start (T-11w) to kickoff (T-0). That answers whether the live cohort is on track to fill by day one. A line starts above zero when applications arrived before T-11w. Deferrals carried over from the previous cohort are left out.</p>
       <div class="seg" role="group" aria-label="Metric"><button id="pace-apps" aria-pressed="true">Applications</button><button id="pace-ccat" aria-pressed="false">CCAT completed</button></div>
@@ -124,7 +153,7 @@ td.num{font-family:var(--mono)}
       <p class="read" id="pace-read"></p>
     </div>
 
-    <div class="card wide">
+    <div class="card wide" data-spec="signed_countdown">
       <h3>Signed seats counting down to cohort start</h3>
       <p class="why">The same countdown for signed enrollment agreements, from six weeks out (T-6w): each cohort's share of its kickoff total first, then the raw count. This is the funnel's output, so the curve shows how late the roster locks in.</p>
       <div class="legend" id="signed-legend"></div>
@@ -136,7 +165,7 @@ td.num{font-family:var(--mono)}
       <p class="foot" id="signed-foot"></p>
     </div>
 
-    <div class="card wide">
+    <div class="card wide" data-spec="funnel_steps">
       <h3>Funnel step conversion by cohort</h3>
       <p class="why">Each panel is one step of the funnel. The bar shows what percent of the people who reached that step made it to the next one, so the panels chain left to right:</p>
       <ul class="why steps">
@@ -150,7 +179,7 @@ td.num{font-family:var(--mono)}
       <p class="foot">Hover a bar for the counts behind it. C4 is left off because it has no decision or contract data in Firestore. C5 acceptances are inferred from <code>status = step-6-approve</code>. C8 is still in progress (faded bars), and its records are created later in the form flow, which inflates its step 1 rate.</p>
     </div>
 
-    <div class="card wide">
+    <div class="card wide" data-spec="band_mix">
       <h3>CCAT band mix by cohort</h3>
       <p class="why">How to read it: each bar is 100% of one cohort's CCAT-takers, split by score band. The dark navy segment (40+) is the auto-advance pool. The bigger it is, the more acceptances the same number of applicants can produce.</p>
       <div class="legend" id="band-legend"></div>
@@ -168,7 +197,7 @@ td.num{font-family:var(--mono)}
 <section>
   <h2>Operations and velocity</h2>
   <div class="grid2">
-    <div class="card wide">
+    <div class="card wide" data-spec="ccat_velocity">
       <h3>CCAT velocity by application month</h3>
       <p class="why">Share of applicants who finish the CCAT within 14 days of applying. This is the metric the nurture sequences move.</p>
       <div class="chart" id="vel"></div>
@@ -179,7 +208,7 @@ td.num{font-family:var(--mono)}
     </div>
 
 
-    <div class="card wide">
+    <div class="card wide" data-spec="decision_sla">
       <h3>Decision SLA: CCAT complete → decision</h3>
       <p class="why">Days from CCAT completion to the admissions decision. The bar runs from p25 to p75, the tick is the median, and the whisker extends to p90.</p>
       <div class="chart" id="sla"></div>
@@ -188,7 +217,7 @@ td.num{font-family:var(--mono)}
     </div>
 
 
-    <div class="card wide">
+    <div class="card wide" data-spec="unsigned_aging">
       <h3>Accepted but unsigned, by days since acceptance</h3>
       <p class="why">Accepted candidates who haven't signed yet, bucketed by how long ago they were accepted. Every accepted candidate already has an agreement waiting, so the only question is how long they've been sitting on it relative to the cohort's start date.</p>
       <div class="legend" id="uns-legend"></div>
@@ -202,7 +231,7 @@ td.num{font-family:var(--mono)}
 <section>
   <h2>Policy evidence</h2>
   <div class="grid2">
-    <div class="card">
+    <div class="card" data-spec="retake_delta">
       <h3>Retake delta: attempt 2 minus attempt 1</h3>
       <p class="why">This is the evidence for the retake-window policy: is the retake rescuing talent or inflating scores? The shaded zone is the +7 deliberation flag.</p>
       <div class="chart" id="retake"></div>
@@ -210,7 +239,7 @@ td.num{font-family:var(--mono)}
       <div class="tblwrap"><table id="retake-tbl"></table></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-spec="source_quality">
       <h3>Source quality: CCAT 40+ rate by UTM source</h3>
       <p class="why">Which channels bring quality and which only bring volume. Only sources with 15 or more CCAT-takers are shown. The whisker is a 90% Wilson interval.</p>
       <div class="chart" id="src"></div>
@@ -227,6 +256,96 @@ td.num{font-family:var(--mono)}
   <h2>Roadblocks to making this live in HQ</h2>
   <div class="blockers" id="blockers"></div>
 </section>
+<details class="spec" id="hq-spec">
+  <summary>HQ build spec (for engineering and agents): data definitions behind every chart</summary>
+  <div id="spec-body"></div>
+</details>
+<script type="application/json" id="hq-chart-spec">
+{
+ "common": {
+  "source": "Firestore project gauntlet-hq: collection `applications` (plus `applications_internal` for UTM, joined on doc ID). Read-only.",
+  "cohort": "`appliedFor` (normalize `cohort-4` → `cohort_4`; drop `duplicate`, `deleted_orphan`). C4–C8 in scope.",
+  "dedupe": "One record per (appliedFor, lowercase `personalInfo.email`). Keep the most advanced: has `adminDecision` > has a CCAT score > furthest `status` > latest `updatedAt`.",
+  "score": "`ccat.score` (manual admin override) if set, else `ccatScore` (latest attempt).",
+  "accepted": "`adminDecision` ∈ {accepted, gfa-accepted}. C5 predates the field: `status` ∈ {step-6-approve, approved}.",
+  "signed": "accepted AND `contractSigned` == true. Sign time = `contractSignedAt`, else `contractSyncedAt` (DocuSign sync, usually within 2h). Undated signers predate the sync (~2026-06-03) and count as signed before T-11w.",
+  "first_ccat": "`ccat1CompletedAt`, else `ccatCompletedAt`.",
+  "qualified_at": "First time the applicant reached 40+: `ccat1CompletedAt` if `ccat1Score` ≥ 40, else `ccat2CompletedAt` if `ccat2Score` ≥ 40, else `ccatCompletedAt` / `ccat.updatedAt` (override).",
+  "cohort_start": "Live cohort: `apply_admin/settings.currentCohort.startDate`. Past cohorts: \"Final - 2026 Gauntlet AI Schedule\" sheet (C4 2026-02-16, C5 04-27, C6 07-06, C7 09-14). HQ should store `startDate` on every `cohortHistory` entry.",
+  "reference_impl": "tools/report/build.py in drewrice2/admissions-cloud computes every series on this page.",
+  "fields_to_add": "`decisionAt` (write once, never overwrite), `contractSignedAt` on every signing, and `startDate`, `applicationStartDate`, `applicationDeadline` per cohort in `cohortHistory`."
+ },
+ "charts": {
+  "weekly_brief": {
+   "title": "This week (5 tiles)",
+   "what": "Counts of events in rolling 7-day windows ending now, across all C4–C8 records; delta vs the prior 7 days; 12-week sparkline.",
+   "fields": "New applications: `createdAt`. CCATs: first_ccat. 40+ scorers: qualified_at. Accepted: accepted AND `admissionsUpdatedAt` in window. Signed: signed-at in window.",
+   "caveats": "Accepted uses `admissionsUpdatedAt` (last admissions touch), so it drifts when a record is touched after the decision. Replace with `decisionAt` once HQ writes it."
+  },
+  "qualified_pipeline": {
+   "title": "Qualified pipeline countdown",
+   "what": "Per cohort, cumulative count of records whose qualified_at ≤ (cohort_start − d), for d = 77…0 days. Plotted from T-11w to T-0.",
+   "fields": "qualified_at, cohort_start, `createdAt`.",
+   "caveats": "Records created more than 7 days before the cohort's intake opened (deferral carry-overs) are excluded. A cohort not yet inside T-11w doesn't appear."
+  },
+  "pacing": {
+   "title": "Applications / CCAT pacing countdown",
+   "what": "Cumulative `createdAt` (or first_ccat) count at each day T-77…T-0, as % of the T-0 value and as raw counts. Toggle between applications and CCATs.",
+   "fields": "`createdAt`, first_ccat, cohort_start.",
+   "caveats": "Same carry-over exclusion as the qualified pipeline. C8's form creates records later in the flow than earlier cohorts did."
+  },
+  "signed_countdown": {
+   "title": "Signed seats countdown",
+   "what": "Cumulative signed-at count from T-6w to T-0, as % of the T-0 total and raw. Hollow dots are DocuSign-exact checkpoints from the Sep 15 ledger (C6, C7).",
+   "fields": "signed rule, cohort_start.",
+   "caveats": "C5 has no sign dates and is excluded. HQ should write `contractSignedAt` on every signing."
+  },
+  "funnel_steps": {
+   "title": "Funnel step conversion",
+   "what": "Step 1 = CCAT-takers ÷ applicants. Step 2 = accepted ÷ CCAT-takers. Step 3 = signed ÷ accepted. Overall = signed ÷ applicants.",
+   "fields": "score present, accepted, signed.",
+   "caveats": "C4 has no decision data. C8's step 1 is inflated because its records start at submission."
+  },
+  "band_mix": {
+   "title": "CCAT band mix + score distribution",
+   "what": "Share of CCAT-takers per band (<32, 32–34, 35–39, 40+) per cohort; p10/p25/median/mean/p75/p90 of score.",
+   "fields": "score.",
+   "caveats": "Uses the latest score, so retakers count at their retake score."
+  },
+  "ccat_velocity": {
+   "title": "CCAT velocity by month",
+   "what": "Group by `createdAt` month: % with first_ccat − createdAt ≤ 14 days. MoM bars = difference in percentage points. Surge month = applicants ≥ 2× the median month.",
+   "fields": "`createdAt`, first_ccat.",
+   "caveats": "The current month is still maturing and can only rise."
+  },
+  "decision_sla": {
+   "title": "Decision SLA",
+   "what": "For decided records (C7+): days from `ccatCompletedAt` to `admissionsUpdatedAt`; p25/median/p75/p90.",
+   "fields": "`ccatCompletedAt`, `adminDecision`, `admissionsUpdatedAt`.",
+   "caveats": "Overstates the lag when a record is touched after the decision. Needs `decisionAt`."
+  },
+  "unsigned_aging": {
+   "title": "Accepted but unsigned",
+   "what": "accepted AND NOT `contractSigned`, bucketed by days since `admissionsUpdatedAt` (0–7, 8–14, 15–30, 31+).",
+   "fields": "accepted, `contractSigned`, `admissionsUpdatedAt`.",
+   "caveats": "Every accepted candidate already has an agreement out, so envelope presence isn't a signal."
+  },
+  "retake_delta": {
+   "title": "Retake delta",
+   "what": "`ccat2Score` − `ccat1Score` for records with both; histogram clamped to [−10, +15]; share of each first-attempt band that reaches 40+ on the retake.",
+   "fields": "`ccat1Score`, `ccat2Score`.",
+   "caveats": "None."
+  },
+  "source_quality": {
+   "title": "Source quality",
+   "what": "`applications_internal.utmSource` (lowercased, aliases merged) × 40+ rate among CCAT-takers, with a 90% Wilson interval; stacked volume bars split into 40+, under 40 and no CCAT.",
+   "fields": "`applications_internal.utmSource`, score.",
+   "caveats": "Only about 36% of records carry a UTM source."
+  }
+ }
+}
+</script>
+
 </div>
 
 <script>
@@ -634,6 +753,45 @@ mount("srcbar", (host, W) => {
   const rows = D.sources.filter(r => r.src !== "(none)").sort((a, b) => b.apps - a.apps).map(r => ({ label: r.src, v: { p40: r.pass40, sub: r.ccat - r.pass40, none: r.apps - r.ccat } }));
   stackRows(host, W, rows, [["p40", "var(--o4)", "CCAT 40+"], ["sub", "var(--o2)", "CCAT under 40"], ["none", "var(--neutral)", "no CCAT"]], { lw: Math.min(150, W * .34), rpad: 44, inkOn: k => (k === "none" ? "var(--ink)" : "#fff") });
 });
+/* ---------- weekly brief ---------- */
+(() => {
+  const WKD = D.weekly;
+  const spark = (arr, col) => { const w = 120, h = 28, mx = Math.max(1, ...arr), st = w / (arr.length - 1);
+    const pts = arr.map((v, i) => `${(i * st).toFixed(1)},${(h - 3 - v / mx * (h - 6)).toFixed(1)}`).join(" ");
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><circle cx="${w}" cy="${(h - 3 - arr.at(-1) / mx * (h - 6)).toFixed(1)}" r="2.5" fill="${col}"/></svg>`; };
+  document.getElementById("weekly").innerHTML = WKD.metrics.map(mm => {
+    const a = mm.series, cur = a.at(-1), prev = a.at(-2), avg = a.slice(-5, -1).reduce((x, y) => x + y, 0) / 4;
+    const d = cur - prev, cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
+    return `<div class="tile wk"><span class="k">${mm.label}${mm.approx ? " *" : ""}</span><div class="top"><span class="v">${fmt(cur)}</span><span class="d ${cls}">${d > 0 ? "▲ +" : d < 0 ? "▼ " : "± "}${d} vs last wk</span></div>${spark(a, "var(--c4)")}<span class="s">4-week avg ${avg.toFixed(0)}</span></div>`;
+  }).join("");
+})();
+
+/* ---------- qualified pipeline ---------- */
+legend("qual-legend", PCOH.map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + offNote(c)]), "line");
+mount("qual", (host, W) => countdown(host, W, "qual_cum", false));
+(() => {
+  const k0 = c => TC[c].qual_cum[TM.days], F = D.funnel;
+  const done = DONE.filter(c => TC[c].qual_cum.length);
+  const live = PCOH.find(c => TC[c].today < 0);
+  document.getElementById("qual-read").innerHTML = `<b>Takeaway: C7 reached kickoff with ${k0("C7")} qualified candidates, against ${k0("C6")} for C6 and ${k0("C5")} for C5, yet signed about as many people as C6 (${F.C7.signed} vs ${F.C6.signed}).</b> C7 converted a smaller qualified pool much better; the ceiling now is the pool itself.` +
+    (live ? ` ${live} has ${TC[live].qual_now} qualified so far at T-${Math.round(-TC[live].today / 7)}w.` : "");
+})();
+
+/* ---------- spec: hover pills + collapsed reference ---------- */
+(() => {
+  let SPEC; try { SPEC = JSON.parse(document.getElementById("hq-chart-spec").textContent); } catch (e) { return; }
+  const esc = t => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/`([^`]+)`/g, "<code>$1</code>");
+  const dl = c => `<dl><dt>What</dt><dd>${esc(c.what)}</dd><dt>Fields</dt><dd>${esc(c.fields)}</dd><dt>Caveats</dt><dd>${esc(c.caveats)}</dd></dl>`;
+  document.querySelectorAll("[data-spec]").forEach(card => {
+    const c = SPEC.charts[card.dataset.spec], h = card.querySelector("h3"); if (!c || !h) return;
+    h.insertAdjacentHTML("beforeend", `<span class="specbtn" tabindex="0" aria-label="HQ build spec">spec<span class="specpop" role="tooltip">${dl(c)}</span></span>`);
+  });
+  const wk = document.getElementById("weekly"); if (wk && SPEC.charts.weekly_brief) wk.parentElement.querySelector("h2").insertAdjacentHTML("beforeend", ` <span class="specbtn" tabindex="0">spec<span class="specpop" role="tooltip">${dl(SPEC.charts.weekly_brief)}</span></span>`);
+  document.getElementById("spec-body").innerHTML = `<h4>Shared definitions</h4><dl>${Object.entries(SPEC.common).map(([k, v]) => `<dt>${k.replace(/_/g, " ")}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` +
+    Object.entries(SPEC.charts).map(([k, c]) => `<h4>${c.title} <code>${k}</code></h4>${dl(c)}`).join("") +
+    `<p class="foot" style="margin-top:12px">Machine-readable copy: <code>&lt;script type="application/json" id="hq-chart-spec"&gt;</code> in this page's source.</p>`;
+})();
+
 /* ---------- TL;DR ---------- */
 (() => {
   const F = D.funnel, B = D.bands, P = TM.cohorts, L = TM.ledger, V = D.velocity;
