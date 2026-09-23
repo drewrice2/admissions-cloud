@@ -119,13 +119,22 @@ out["tminus"] = {"days": T0, "cohorts": tm, "ledger": LEDGER}
 
 # Weekly brief: org-wide activity (all C4-C8 records, deduped) in rolling 7-day windows ending now.
 WK = 12
-def wk_counts(dates):
+def wk_counts(dates, span=7):
     c = [0] * WK
     for t in dates:
         if not t: continue
-        k = (NOW - t).days // 7
+        k = (NOW - t).days // span
         if 0 <= k < WK: c[WK - 1 - k] += 1
     return c
+def period_metrics(span):
+    return [
+        {"key": "apps", "label": "New applications", "series": wk_counts((ts(a.get("createdAt")) for a in R), span)},
+        {"key": "ccat", "label": "CCATs completed", "series": wk_counts((first_ccat(a) for a in R), span)},
+        {"key": "qual", "label": "New 40+ scorers", "series": wk_counts((qual_date(a) for a in R), span)},
+        {"key": "acc", "label": "Accepted", "series": wk_counts((ts(a.get("admissionsUpdatedAt")) for a in R if accepted(a)), span), "approx": True},
+        {"key": "signed", "label": "Signed", "series": wk_counts((signed_date(a) for a in R if accepted(a) and a.get("contractSigned")), span)},
+    ]
+out["monthly"] = {"days": 30, "metrics": period_metrics(30)}
 out["weekly"] = {"weeks": WK, "metrics": [
     {"key": "apps", "label": "New applications", "series": wk_counts(ts(a.get("createdAt")) for a in R)},
     {"key": "ccat", "label": "CCATs completed", "series": wk_counts(first_ccat(a) for a in R)},

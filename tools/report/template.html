@@ -83,6 +83,13 @@ details.spec code,.specpop code{font-size:11.5px}
 .key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--ink2)}.key span{display:inline-flex;align-items:center;gap:6px}
 .wrap > section + section, .wrap > .tldr + section, .wrap > section + .tldr{border-top:1px solid var(--line);padding-top:32px}
 .wk .pct{font:600 26px/1.1 var(--mono)}.wk .pct.up{color:var(--pos-ink)}.wk .pct.down{color:var(--neg-ink)}.wk .pct.flat{color:var(--ink2)}
+.prow{display:flex;flex-direction:column}
+.prow .pr{display:grid;grid-template-columns:minmax(110px,1.3fr) minmax(78px,.8fr) minmax(70px,1fr) minmax(86px,1fr);align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.prow .pr:first-child{border-top:0}
+.prow .k{font-size:13px;color:var(--ink2)}
+.prow .pct{font:600 19px/1.1 var(--mono)}.prow .pct.up{color:var(--pos-ink)}.prow .pct.down{color:var(--neg-ink)}.prow .pct.flat{color:var(--ink2)}
+.prow svg{display:block;width:100%;height:24px}
+.prow .raw{font:12px var(--mono);color:var(--ink3);text-align:right}
 .sub{font-size:13px;font-weight:600;color:var(--ink2);margin-top:8px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink2)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -131,9 +138,12 @@ td.num{font-family:var(--mono)}
 </section>
 
 <section>
-  <h2>Week over week (WoW)</h2>
-  <p class="why" style="margin-top:-6px">Percent change, last 7 days vs the 7 days before (rolling, all cohorts). Sparkline: last 12 weeks. * Accepted is approximate until HQ writes a decision timestamp.</p>
-  <div class="tiles" id="weekly"></div>
+  <h2>Week over week · Month over month</h2>
+  <p class="why" style="margin-top:-6px">Percent change vs the prior period, rolling windows ending at the data timestamp, all cohorts. WoW = last 7 days vs the 7 before; MoM = last 30 days vs the 30 before. Sparklines show the last 12 periods. * Accepted is approximate until HQ writes a decision timestamp.</p>
+  <div class="grid2">
+    <div class="card"><h3>Week over week (WoW)</h3><div class="prow" id="weekly"></div></div>
+    <div class="card"><h3>Month over month (MoM)</h3><div class="prow" id="monthly"></div></div>
+  </div>
 </section>
 
 <div class="card tldr">
@@ -266,8 +276,8 @@ td.num{font-family:var(--mono)}
  },
  "charts": {
   "weekly_brief": {
-   "title": "This week (5 tiles)",
-   "what": "Counts of events in rolling 7-day windows ending now, across all C4–C8 records; delta vs the prior 7 days; 12-week sparkline.",
+   "title": "WoW / MoM",
+   "what": "Counts of events in rolling 7-day (WoW) and 30-day (MoM) windows ending now, across all C4–C8 records; % change vs the prior window; 12-period sparklines.",
    "fields": "New applications: `createdAt`. CCATs: first_ccat. 40+ scorers: qualified_at. Accepted: accepted AND `admissionsUpdatedAt` in window. Signed: signed-at in window.",
    "caveats": "Accepted uses `admissionsUpdatedAt` (last admissions touch), so it drifts when a record is touched after the decision. Replace with `decisionAt` once HQ writes it."
   },
@@ -678,18 +688,20 @@ mount("srcbar", (host, W) => {
   const rows = D.sources.filter(r => r.src !== "(none)").sort((a, b) => b.apps - a.apps).map(r => ({ label: r.src, v: { p40: r.pass40, sub: r.ccat - r.pass40, none: r.apps - r.ccat } }));
   stackRows(host, W, rows, [["p40", "var(--pos)", "CCAT 40+"], ["sub", "var(--neu)", "CCAT under 40"], ["none", "var(--mute)", "no CCAT"]], { lw: Math.min(150, W * .34), rpad: 44, inkOn: () => "var(--on-pastel)" });
 });
-/* ---------- weekly brief ---------- */
+/* ---------- WoW / MoM ---------- */
 (() => {
-  const WKD = D.weekly;
-  const spark = (arr, col) => { const w = 120, h = 28, mx = Math.max(1, ...arr), st = w / (arr.length - 1);
-    const pts = arr.map((v, i) => `${(i * st).toFixed(1)},${(h - 3 - v / mx * (h - 6)).toFixed(1)}`).join(" ");
-    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><circle cx="${w}" cy="${(h - 3 - arr.at(-1) / mx * (h - 6)).toFixed(1)}" r="2.5" fill="${col}"/></svg>`; };
-  document.getElementById("weekly").innerHTML = WKD.metrics.map(mm => {
-    const a = mm.series, cur = a.at(-1), prev = a.at(-2), avg = a.slice(-5, -1).reduce((x, y) => x + y, 0) / 4;
-    const d = cur - prev, cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
-    const pc = prev ? 100 * d / prev : null, pcs = pc == null ? "new" : `${pc > 0 ? "+" : ""}${Math.round(pc)}%`;
-    return `<div class="tile wk"><span class="k">${mm.label}${mm.approx ? " *" : ""}</span><span class="pct ${cls}">${pc == null ? "" : pc > 0 ? "▲ " : pc < 0 ? "▼ " : ""}${pcs}</span>${spark(a, "var(--neu-ink)")}<span class="s">${fmt(cur)} vs ${fmt(prev)} the week before</span></div>`;
-  }).join("");
+  const spark = (arr, col) => { const w = 120, h = 24, mx = Math.max(1, ...arr), st = w / (arr.length - 1);
+    const Y = v => (h - 3 - v / mx * (h - 6)).toFixed(1);
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${arr.map((v, i) => `${(i * st).toFixed(1)},${Y(v)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`; };
+  const render = (id, P) => {
+    document.getElementById(id).innerHTML = P.metrics.map(mm => {
+      const a = mm.series, cur = a.at(-1), prev = a.at(-2), d = cur - prev;
+      const pc = prev ? 100 * d / prev : null, cls = pc == null || Math.round(pc) === 0 ? "flat" : pc > 0 ? "up" : "down";
+      const pcs = pc == null ? "new" : `${pc > 0 ? "▲ +" : pc < 0 ? "▼ " : ""}${Math.round(pc)}%`;
+      return `<div class="pr"><span class="k">${mm.label}${mm.approx ? " *" : ""}</span><span class="pct ${cls}">${pcs}</span>${spark(a, "var(--neu-ink)")}<span class="raw">${fmt(cur)} vs ${fmt(prev)}</span></div>`;
+    }).join("");
+  };
+  render("weekly", D.weekly); render("monthly", D.monthly);
 })();
 
 /* ---------- qualified pipeline ---------- */
@@ -712,7 +724,7 @@ mount("qual", (host, W) => countdown(host, W, "qual_cum", false));
     const c = SPEC.charts[card.dataset.spec], h = card.querySelector("h3"); if (!c || !h) return;
     h.insertAdjacentHTML("beforeend", `<span class="specbtn" tabindex="0" aria-label="HQ build spec">spec<span class="specpop" role="tooltip">${dl(c)}</span></span>`);
   });
-  const wk = document.getElementById("weekly"); if (wk && SPEC.charts.weekly_brief) wk.parentElement.querySelector("h2").insertAdjacentHTML("beforeend", ` <span class="specbtn" tabindex="0">spec<span class="specpop" role="tooltip">${dl(SPEC.charts.weekly_brief)}</span></span>`);
+  const wk = document.getElementById("weekly"); if (wk && SPEC.charts.weekly_brief) wk.closest("section").querySelector("h2").insertAdjacentHTML("beforeend", ` <span class="specbtn" tabindex="0">spec<span class="specpop" role="tooltip">${dl(SPEC.charts.weekly_brief)}</span></span>`);
   document.getElementById("spec-body").innerHTML = `<h4>Shared definitions</h4><dl>${Object.entries(SPEC.common).map(([k, v]) => `<dt>${k.replace(/_/g, " ")}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` +
     Object.entries(SPEC.charts).map(([k, c]) => `<h4>${c.title} <code>${k}</code></h4>${dl(c)}`).join("") +
     `<p class="foot" style="margin-top:12px">Machine-readable copy: <code>&lt;script type="application/json" id="hq-chart-spec"&gt;</code> in this page's source.</p>`;
