@@ -55,6 +55,8 @@ section{display:flex;flex-direction:column;gap:18px}
 .read{font-size:13.5px;margin:0;padding:8px 10px;border-radius:6px;background:var(--bg);color:var(--ink)}
 .read b{font-weight:600}
 .foot{font-size:12px;color:var(--ink3);margin:0}
+.steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px}
+.sub{font-size:13px;font-weight:600;color:var(--ink2);margin-top:8px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink2)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .sw{width:10px;height:10px;border-radius:3px;display:inline-block}
@@ -107,23 +109,34 @@ td.num{font-family:var(--mono)}
       <div class="seg" role="group" aria-label="Metric"><button id="pace-apps" aria-pressed="true">Applications</button><button id="pace-ccat" aria-pressed="false">CCAT completed</button></div>
       <div class="legend" id="pace-legend"></div>
       <div class="chart" id="pace"></div>
+      <div class="sub">Same curves as a share of each cohort's total at kickoff. This shows velocity: how early a cohort fills, not how big it gets.</div>
+      <div class="chart" id="pace-pct"></div>
       <p class="read" id="pace-read"></p>
     </div>
 
     <div class="card wide">
-      <h3>Early intake: the first 6 weeks after applications open</h3>
-      <p class="why">This shows the live cohort before it reaches the countdown window. Each line is cumulative applications by day since that cohort's intake opened, so C8 can be read against every earlier cohort at the same age. The open date is inferred as the Monday of the first week with 20 or more applications.</p>
-      <div class="legend" id="intake-legend"></div>
-      <div class="chart" id="intake"></div>
-      <p class="read" id="intake-read"></p>
+      <h3>Signed seats counting down to cohort start</h3>
+      <p class="why">The same countdown for signed enrollment agreements: the count first, then each cohort's share of its kickoff total. This is the funnel's output, so the curve shows how late the roster locks in.</p>
+      <div class="legend" id="signed-legend"></div>
+      <div class="chart" id="signed"></div>
+      <div class="sub">Signed as a share of each cohort's signed total at kickoff</div>
+      <div class="chart" id="signed-pct"></div>
+      <p class="read" id="signed-read"></p>
+      <p class="foot" id="signed-foot"></p>
     </div>
 
     <div class="card wide">
-      <h3>Stage conversion rates by cohort</h3>
-      <p class="why">Rates, not counts. Volume swings about 4× between cohorts, so raw funnel bars mostly reflect marketing spend. Each panel is one transition.</p>
+      <h3>Funnel step conversion by cohort</h3>
+      <p class="why">Each panel is one step of the funnel. The bar shows what percent of the people who reached that step made it to the next one, so the panels chain left to right:</p>
+      <ul class="why steps">
+        <li><b>Step 1: Applied → took CCAT.</b> Of everyone who applied, the percent who completed the CCAT.</li>
+        <li><b>Step 2: Took CCAT → accepted.</b> Of CCAT-takers, the percent we accepted (<code>adminDecision</code> accepted or GFA).</li>
+        <li><b>Step 3: Accepted → signed.</b> Of accepted candidates, the percent who signed the enrollment agreement.</li>
+        <li><b>Overall: applied → signed.</b> Steps 1 × 2 × 3: the percent of all applicants who became signed students.</li>
+      </ul>
       <div class="legend" id="fun-legend"></div>
       <div class="chart" id="funnel"></div>
-      <p class="foot">C4 has no admissions decisions or contracts in Firestore. C5 acceptances are inferred from <code>status = step-6-approve</code>, since the <code>adminDecision</code> field came later. C8 records are created later in the form flow, which inflates its CCAT/started rate. C8 is still in progress.</p>
+      <p class="foot">Hover a bar for the counts behind it. C4 is left off because it has no decision or contract data in Firestore. C5 acceptances are inferred from <code>status = step-6-approve</code>. C8 is still in progress (faded bars), and its records are created later in the form flow, which inflates its step 1 rate.</p>
     </div>
 
     <div class="card">
@@ -131,6 +144,8 @@ td.num{font-family:var(--mono)}
       <p class="why">Share of CCAT-takers in each policy band. This is the quality of the top of the funnel, and it caps how many acceptances a given volume can produce.</p>
       <div class="legend" id="band-legend"></div>
       <div class="chart" id="bands"></div>
+      <div class="sub">Score distribution. The box is the middle 50% of scores, the tick is the median, the dot is the mean, and the whiskers run from the 10th to the 90th percentile. Grey lines mark the 32 / 35 / 40 cutoffs.</div>
+      <div class="chart" id="dist"></div>
       <p class="read" id="band-read"></p>
     </div>
 
@@ -263,113 +278,101 @@ function mount(id, fn) { const host = document.getElementById(id); const draw = 
   document.getElementById("tiles").innerHTML = tiles.map(([k, v, sub]) => `<div class="tile"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`).join("");
 })();
 
-/* ---------- 1. pacing ---------- */
+/* ---------- 1. pacing (countdown to cohort start) ---------- */
 let paceMetric = "cum";
-const TM = D.tminus, TC = TM.cohorts;
+const TM = D.tminus, TC = TM.cohorts, PCOH = COH.filter(c => c !== "C4");
 const fmtD = iso => new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-legend("pace-legend", COH.map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + (TC[c].today < -TM.days ? ` (T-${Math.round(-TC[c].today / 7)}w today, not on chart yet)` : "")]), "line");
-const drawPace = mount("pace", (host, W) => {
-  const H = Math.max(240, Math.min(360, W * 0.5)), m = { l: 44, r: 64, t: 12, b: 34 };
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cumulative volume counting down to cohort start" }, host);
-  const X = TM.days, series = COH.map(c => ({ c, v: TC[c][paceMetric] })).filter(o => o.v.length);
-  const ymax = niceMax(Math.max(...series.flatMap(o => o.v)));
+const offNote = c => TC[c].today < -TM.days ? ` (T-${Math.round(-TC[c].today / 7)}w today, joins chart ${fmtD(new Date(Date.parse(TC[c].start) - TM.days * 864e5).toISOString().slice(0, 10))})` : "";
+legend("pace-legend", PCOH.map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + offNote(c)]), "line");
+legend("signed-legend", PCOH.filter(c => TC[c].signed_dated).map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + offNote(c)]), "line");
+function countdown(host, W, key, pctMode) {
+  const H = Math.max(220, Math.min(340, W * 0.46)), m = { l: 48, r: 64, t: 12, b: 34 };
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cumulative count by weeks before cohort start" }, host);
+  const X = TM.days;
+  const series = PCOH.map(c => {
+    const raw = TC[c][key] || [], done = TC[c].today >= 0, tot = raw[X];
+    if (!raw.length || (pctMode && (!done || !tot))) return null;
+    return { c, raw, v: pctMode ? raw.map(n => n / tot) : raw };
+  }).filter(o => o && Math.max(...o.raw) > 0);
+  if (!series.length) { txt(svg, W / 2, H / 2, "no data in window yet", { "text-anchor": "middle" }); return; }
+  const ymax = pctMode ? 1 : niceMax(Math.max(...series.flatMap(o => o.v)));
   const x = i => m.l + i / X * (W - m.l - m.r), y = v => H - m.b - v / ymax * (H - m.t - m.b);
-  for (const t of ticks(ymax)) { s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); txt(svg, m.l - 6, y(t) + 4, fmt(Math.round(t)), { "text-anchor": "end" }); }
+  const yl = t => pctMode ? Math.round(t * 100) + "%" : fmt(Math.round(t));
+  for (const t of ticks(ymax)) { s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); txt(svg, m.l - 6, y(t) + 4, yl(t), { "text-anchor": "end" }); }
   for (let w = 11; w >= 0; w -= W < 520 ? 2 : 1) { const i = X - w * 7; s("line", { x1: x(i), x2: x(i), y1: H - m.b, y2: H - m.b + 4, stroke: "var(--line)" }, svg); txt(svg, x(i), H - m.b + 16, w === 0 ? "T-0" : `T-${w}w`, { "text-anchor": "middle" }); }
   s("line", { x1: x(X), x2: x(X), y1: m.t, y2: H - m.b, stroke: "var(--ink3)", "stroke-width": 1 }, svg);
-  txt(svg, x(X) - 4, m.t + 10, "cohort start", { "text-anchor": "end" });
+  txt(svg, x(X) - 4, pctMode ? H - m.b - 6 : m.t + 10, "cohort start", { "text-anchor": "end" });
   txt(svg, W - m.r, H - 2, "weeks before cohort start", { "text-anchor": "end" });
   const lab = [];
-  for (const { c, v } of series) {
-    const d = v.map((val, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(val).toFixed(1)}`).join("");
-    s("path", { d, fill: "none", stroke: cvar(c), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", class: "ln" }, svg);
+  for (const { c, v, raw } of series) {
+    s("path", { d: v.map((val, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(val).toFixed(1)}`).join(""), fill: "none", stroke: cvar(c), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
     const li = v.length - 1;
     s("circle", { cx: x(li), cy: y(v[li]), r: 4, fill: cvar(c), stroke: "var(--surface)", "stroke-width": 2 }, svg);
-    lab.push({ c, x: x(li), y: y(v[li]), v: v[li] });
+    if (!pctMode) lab.push({ c, x: x(li), y: y(v[li]), t: `${c} ${fmt(raw[li])}` });
+    else { const i4 = X - 28; lab.push({ c, x: x(i4), y: y(v[i4]), t: `${c} ${Math.round(v[i4] * 100)}%`, left: true }); }
   }
   lab.sort((a, b) => a.y - b.y); for (let i = 1; i < lab.length; i++) if (lab[i].y - lab[i - 1].y < 13) lab[i].y = lab[i - 1].y + 13;
-  for (const l of lab) txt(svg, l.x + 7, l.y + 4, `${l.c} ${fmt(l.v)}`, { class: "val" });
+  for (const l of lab) txt(svg, l.left ? l.x - 7 : l.x + 7, l.y + 4, l.t, { class: "val", "text-anchor": l.left ? "end" : "start" });
+  if (pctMode) { s("line", { x1: x(X - 28), x2: x(X - 28), y1: m.t, y2: H - m.b, stroke: "var(--line)" }, svg); }
   const tip = tipFor(host), cross = s("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink3)", opacity: 0 }, svg);
   const hit = s("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
   hit.addEventListener("pointermove", e => {
-    const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * W / r.width;
-    const i = Math.max(0, Math.min(X, Math.round((px - m.l) / (W - m.l - m.r) * X))), dd = X - i;
+    const r = svg.getBoundingClientRect(), i = Math.max(0, Math.min(X, Math.round(((e.clientX - r.left) * W / r.width - m.l) / (W - m.l - m.r) * X))), dd = X - i;
     cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("opacity", 1);
-    const rows = series.filter(o => o.v[i] != null).map(o => row(cvar(o.c), o.c, fmt(o.v[i]))).join("");
+    const rows = series.filter(o => o.v[i] != null).map(o => row(cvar(o.c), o.c, pctMode ? `${Math.round(o.v[i] * 100)}% (${fmt(o.raw[i])})` : fmt(o.raw[i]))).join("");
     tip.show(`<div class="t">${dd === 0 ? "Cohort start" : `T-${dd} days (${(dd / 7).toFixed(1)} wk)`}</div>${rows}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top);
   });
   hit.addEventListener("pointerleave", () => { tip.hide(); cross.setAttribute("opacity", 0); });
-});
+}
+const drawPace = mount("pace", (host, W) => countdown(host, W, paceMetric, false));
+const drawPacePct = mount("pace-pct", (host, W) => countdown(host, W, paceMetric, true));
+mount("signed", (host, W) => countdown(host, W, "signed_cum", false));
+mount("signed-pct", (host, W) => countdown(host, W, "signed_cum", true));
+const DONE = PCOH.filter(c => TC[c].today >= 0);
+const atW = (c, k, w) => TC[c][k][TM.days - w * 7];
 function paceRead() {
-  const k = paceMetric, nm = k === "cum" ? "applications" : "CCAT completions", done = ["C5", "C6", "C7"];
-  const at = (c, w) => TC[c][k][TM.days - w * 7];
-  const live = COH.find(c => TC[c].today < 0);
+  const k = paceMetric, nm = k === "cum" ? "applications" : "CCAT completions";
+  const live = PCOH.find(c => TC[c].today < 0);
   const liveTxt = live ? (TC[live].today < -TM.days
-    ? `${live} starts ${fmtD(TC[live].start)} and is at T-${Math.round(-TC[live].today / 7)}w today with ${fmt(TC[live][k === "cum" ? "now" : "ccat_now"])} ${nm}, so it joins the chart in mid-November.`
-    : `${live} is at ${fmt(TC[live][k].at(-1))} ${nm}.`) : "";
-  document.getElementById("pace-read").innerHTML = `${nm[0].toUpperCase() + nm.slice(1)} at kickoff: ${done.map(c => `${c} <b>${fmt(at(c, 0))}</b>`).join(", ")}. ` +
-    (k === "cum" ? `Share landing in the last 4 weeks: ${done.map(c => `${c} ${pct(at(c, 0) - at(c, 4), at(c, 0))}`).join(", ")}. ` : "") + liveTxt;
+    ? ` ${live} is at T-${Math.round(-TC[live].today / 7)}w today with ${fmt(TC[live][k === "cum" ? "now" : "ccat_now"])} ${nm}, so it isn't on the chart yet.`
+    : ` ${live} is at ${fmt(TC[live][k].at(-1))} ${nm}.`) : "";
+  document.getElementById("pace-read").innerHTML = `${nm[0].toUpperCase() + nm.slice(1)} at kickoff: ${DONE.map(c => `${c} <b>${fmt(atW(c, k, 0))}</b>`).join(", ")}. ` +
+    `Share already in by T-4w: ${DONE.map(c => `${c} <b>${pct(atW(c, k, 4), atW(c, k, 0))}</b>`).join(", ")}.` + liveTxt;
 }
 paceRead();
 for (const [id, k] of [["pace-apps", "cum"], ["pace-ccat", "ccat_cum"]]) document.getElementById(id).addEventListener("click", () => {
-  paceMetric = k; document.getElementById("pace-apps").setAttribute("aria-pressed", k === "cum"); document.getElementById("pace-ccat").setAttribute("aria-pressed", k === "ccat_cum"); drawPace(); paceRead();
-});
-
-/* ---------- 1c. early intake (days since open) ---------- */
-legend("intake-legend", COH.map(c => [cvar(c), `${c} · opened ${fmtD(D.pacing[c].open)}`]), "line");
-mount("intake", (host, W) => {
-  const H = Math.max(220, Math.min(320, W * 0.42)), m = { l: 44, r: 64, t: 12, b: 34 }, X = 42;
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cumulative applications in the first six weeks of intake" }, host);
-  const series = COH.map(c => ({ c, v: D.pacing[c].cum.slice(0, X + 1) }));
-  const ymax = niceMax(Math.max(...series.flatMap(o => o.v)));
-  const x = i => m.l + i / X * (W - m.l - m.r), y = v => H - m.b - v / ymax * (H - m.t - m.b);
-  for (const t of ticks(ymax)) { s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); txt(svg, m.l - 6, y(t) + 4, fmt(Math.round(t)), { "text-anchor": "end" }); }
-  for (let w = 0; w <= 6; w++) txt(svg, x(w * 7), H - m.b + 16, w === 0 ? "open" : `wk ${w}`, { "text-anchor": "middle" });
-  txt(svg, W - m.r, H - 2, "days since intake opened", { "text-anchor": "end" });
-  const lab = [];
-  for (const { c, v } of series) {
-    s("path", { d: v.map((val, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(val).toFixed(1)}`).join(""), fill: "none", stroke: cvar(c), "stroke-width": c === "C8" ? 3 : 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
-    const li = v.length - 1;
-    s("circle", { cx: x(li), cy: y(v[li]), r: 4, fill: cvar(c), stroke: "var(--surface)", "stroke-width": 2 }, svg);
-    lab.push({ c, x: x(li), y: y(v[li]), v: v[li] });
-  }
-  lab.sort((a, b) => a.y - b.y); for (let i = 1; i < lab.length; i++) if (Math.abs(lab[i].x - lab[i - 1].x) < 60 && lab[i].y - lab[i - 1].y < 13) lab[i].y = lab[i - 1].y + 13;
-  for (const l of lab) txt(svg, l.x + 7, l.y + 4, `${l.c} ${fmt(l.v)}`, { class: "val" });
-  const tip = tipFor(host), cross = s("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink3)", opacity: 0 }, svg);
-  const hit = s("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
-  hit.addEventListener("pointermove", e => {
-    const r = svg.getBoundingClientRect(), i = Math.max(0, Math.min(X, Math.round(((e.clientX - r.left) * W / r.width - m.l) / (W - m.l - m.r) * X)));
-    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("opacity", 1);
-    tip.show(`<div class="t">Day ${i} of intake</div>${series.filter(o => o.v[i] != null).map(o => row(cvar(o.c), o.c, fmt(o.v[i]))).join("")}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top);
-  });
-  hit.addEventListener("pointerleave", () => { tip.hide(); cross.setAttribute("opacity", 0); });
+  paceMetric = k; document.getElementById("pace-apps").setAttribute("aria-pressed", k === "cum"); document.getElementById("pace-ccat").setAttribute("aria-pressed", k === "ccat_cum"); drawPace(); drawPacePct(); paceRead();
 });
 (() => {
-  const d = D.pacing.C8.cum.length - 1, at = c => D.pacing[c].cum[d];
-  const others = ["C4", "C5", "C6", "C7"].map(c => [c, at(c)]).sort((a, b) => b[1] - a[1]);
-  const rank = others.filter(([, v]) => v > at("C8")).length + 1;
-  document.getElementById("intake-read").innerHTML = `On day ${d} of intake, C8 has <b>${fmt(at("C8"))}</b> applications, ${rank === 1 ? "the most" : `#${rank} of 5`} among cohorts at the same age (${others.map(([c, v]) => `${c} ${fmt(v)}`).join(", ")}).`;
+  const SD = DONE.filter(c => TC[c].signed_dated);
+  document.getElementById("signed-read").innerHTML = `Signed at kickoff: ${SD.map(c => `${c} <b>${atW(c, "signed_cum", 0)}</b>`).join(", ")}. ` +
+    `Share signed by T-4w: ${SD.map(c => `${c} <b>${pct(atW(c, "signed_cum", 4), atW(c, "signed_cum", 0))}</b>`).join(", ")}. ` +
+    `Share signed in the final week: ${SD.map(c => `${c} ${pct(atW(c, "signed_cum", 0) - atW(c, "signed_cum", 1), atW(c, "signed_cum", 0))}`).join(", ")}.`;
+  document.getElementById("signed-foot").textContent = "There's no dedicated sign timestamp for most records. Sign date is contractSignedAt when present, otherwise contractSyncedAt; where a record has both, the two usually fall within about 2 hours. Dated signers: " +
+    PCOH.map(c => `${c} ${TC[c].signed_dated}/${TC[c].signed_total}` + (TC[c].signed_after_start ? ` (${TC[c].signed_after_start} after kickoff, not shown)` : "")).join(", ") +
+    ". C5 contracts predate the DocuSign sync and have no sign dates, so C5 is left off this chart.";
 })();
 
 /* ---------- 2. funnel rates (small multiples) ---------- */
-legend("fun-legend", COH.map(c => [cvar(c), c]));
+const FCOH = ["C5", "C6", "C7", "C8"];
+legend("fun-legend", FCOH.map(c => [cvar(c), c + (c === "C8" ? " (in progress)" : "")]));
 mount("funnel", (host, W) => {
   const F = D.funnel;
   const panels = [
-    ["CCAT ÷ started", c => [F[c].ccat, F[c].started]],
-    ["40+ ÷ CCAT", c => [D.bands[c]["40+"], F[c].ccat]],
-    ["Accepted ÷ CCAT", c => c === "C4" ? null : [F[c].accepted, F[c].ccat]],
-    ["Signed ÷ accepted", c => c === "C4" ? null : [F[c].signed, F[c].accepted]],
+    ["Step 1: applied → took CCAT", c => [F[c].ccat, F[c].started], "took CCAT", "applied"],
+    ["Step 2: took CCAT → accepted", c => [F[c].accepted, F[c].ccat], "accepted", "took CCAT"],
+    ["Step 3: accepted → signed", c => [F[c].signed, F[c].accepted], "signed", "accepted"],
+    ["Overall: applied → signed", c => [F[c].signed, F[c].started], "signed", "applied"],
   ];
   const cols = W < 560 ? 2 : 4, pw = W / cols, ph = 150, rows = Math.ceil(panels.length / cols);
   const H = rows * (ph + 24);
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
-  panels.forEach(([title, fn], i) => {
+  panels.forEach(([title, fn, num, den], i) => {
     const ox = (i % cols) * pw, oy = Math.floor(i / cols) * (ph + 24);
-    const vals = COH.map(c => { const r = fn(c); return { c, r, v: r && r[1] ? r[0] / r[1] : null }; });
+    const vals = FCOH.map(c => { const r = fn(c); return { c, r, v: r && r[1] ? r[0] / r[1] : null }; });
     const vmax = niceMax(Math.max(...vals.map(v => v.v || 0)) * 1.1);
     txt(svg, ox + 4, oy + 12, title, { class: "lbl" });
-    const bw = Math.min(24, (pw - 24) / COH.length - 6), gap = (pw - 16 - bw * COH.length) / COH.length;
+    const bw = Math.min(24, (pw - 24) / FCOH.length - 6), gap = (pw - 16 - bw * FCOH.length) / FCOH.length;
     const base = oy + ph - 14, top = oy + 34;
     s("line", { x1: ox + 4, x2: ox + pw - 12, y1: base, y2: base, stroke: "var(--line)" }, svg);
     vals.forEach((v, j) => {
@@ -378,9 +381,9 @@ mount("funnel", (host, W) => {
       if (v.v == null) { txt(svg, bx + bw / 2, base - 4, "n/a", { "text-anchor": "middle" }); return; }
       const h = (base - top) * v.v / vmax;
       const p = s("path", { d: vbar(bx, base - h, bw, h), fill: cvar(v.c), opacity: v.c === "C8" ? .55 : 1 }, svg);
-      txt(svg, bx + bw / 2, base - h - 4, (v.v * 100).toFixed(0) + "%", { "text-anchor": "middle", class: "val" });
+      txt(svg, bx + bw / 2, base - h - 4, (v.v < .1 ? (v.v * 100).toFixed(1) : (v.v * 100).toFixed(0)) + "%", { "text-anchor": "middle", class: "val" });
       const hit = s("rect", { x: bx - gap / 2, y: top - 16, width: bw + gap, height: base - top + 16, fill: "transparent" }, svg);
-      hit.addEventListener("pointermove", e => tip.show(`<div class="t">${v.c} · ${title}</div>${row(cvar(v.c), "rate", (v.v * 100).toFixed(1) + "%")}${row(null, "n", fmt(v.r[0]) + " / " + fmt(v.r[1]))}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
+      hit.addEventListener("pointermove", e => tip.show(`<div class="t">${v.c} · ${title}</div>${row(cvar(v.c), "rate", (v.v * 100).toFixed(1) + "%")}${row(null, num, fmt(v.r[0]))}${row(null, den, fmt(v.r[1]))}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
       hit.addEventListener("pointerleave", () => tip.hide());
     });
   });
@@ -417,9 +420,27 @@ const onBand = k => (k === "<32" ? "var(--ink)" : "#fff");
 mount("bands", (host, W) => stackRows(host, W, COH.map(c => ({ label: c, v: D.bands[c] })), BANDS, { normalize: true, inkOn: k => document.documentElement.matches('[data-theme="dark"]') || (matchMedia("(prefers-color-scheme: dark)").matches && !document.documentElement.matches('[data-theme="light"]')) ? (k === "40+" ? "#10141a" : "#fff") : onBand(k) }));
 (() => {
   const b = D.bands, sh = c => { const t = BANDS.reduce((a, k) => a + b[c][k[0]], 0); return Math.round(100 * b[c]["40+"] / t); };
-  document.getElementById("band-read").innerHTML = `40+ share: C4 <b>${sh("C4")}%</b> → C5 ${sh("C5")}% → C6 ${sh("C6")}% → C7 ${sh("C7")}% → C8 ${sh("C8")}% so far. Mean score: ${COH.map(c => c + " " + b[c].mean).join(" · ")}.`;
+  document.getElementById("band-read").innerHTML = `The share scoring 40+ fell from <b>${sh("C4")}%</b> in C4 to <b>${sh("C6")}%</b> in C6, then partly recovered in C7 (${sh("C7")}%). Median score: C4 ${b.C4.dist.median}, C6 ${b.C6.dist.median}, C7 ${b.C7.dist.median}. The whole distribution shifted down, not just the low tail.`;
 })();
 
+mount("dist", (host, W) => {
+  const cs = COH.filter(c => D.bands[c].dist), rh = 26, gap = 10, lw = 44, H = cs.length * (rh + gap) + 24;
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
+  const lo = 10, hi = 50, x = v => lw + (v - lo) / (hi - lo) * (W - lw - 12);
+  for (const t of [10, 20, 30, 40, 50]) txt(svg, x(t), H - 6, t, { "text-anchor": "middle" });
+  for (const t of [32, 35, 40]) { s("line", { x1: x(t), x2: x(t), y1: 0, y2: H - 20, stroke: "var(--neutral)", "stroke-width": 1 }, svg); }
+  cs.forEach((c, i) => {
+    const q = D.bands[c].dist, y0 = i * (rh + gap) + 4, cy = y0 + rh / 2;
+    txt(svg, 0, cy + 4, c, { class: "lbl" });
+    s("line", { x1: x(q.p10), x2: x(q.p90), y1: cy, y2: cy, stroke: cvar(c), "stroke-width": 2 }, svg);
+    s("rect", { x: x(q.p25), y: y0 + 4, width: Math.max(2, x(q.p75) - x(q.p25)), height: rh - 8, rx: 4, fill: cvar(c), opacity: .3 }, svg);
+    s("line", { x1: x(q.median), x2: x(q.median), y1: y0 + 1, y2: y0 + rh - 1, stroke: cvar(c), "stroke-width": 3, "stroke-linecap": "round" }, svg);
+    s("circle", { cx: x(q.mean), cy, r: 4.5, fill: "var(--surface)", stroke: cvar(c), "stroke-width": 2 }, svg);
+    const hit = s("rect", { x: lw, y: y0, width: W - lw, height: rh, fill: "transparent" }, svg);
+    hit.addEventListener("pointermove", e => tip.show(`<div class="t">${c} · CCAT scores (n=${fmt(q.n)})</div>${row(null, "p10", q.p10)}${row(null, "p25", q.p25)}${row(cvar(c), "median", q.median)}${row(null, "mean", q.mean)}${row(null, "p75", q.p75)}${row(null, "p90", q.p90)}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
+    hit.addEventListener("pointerleave", () => tip.hide());
+  });
+});
 /* ---------- 4. projection ---------- */
 mount("proj", (host, W) => {
   const P = D.projection, H = 150, m = { l: 12, r: 24 };

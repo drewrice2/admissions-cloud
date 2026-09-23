@@ -18,7 +18,7 @@ def ser(v):
     return v
 F = ["appliedFor","status","createdAt","submittedAt","appliedAt","ccatScore","ccat1Score","ccat2Score","ccatAttempts",
      "ccatCompletedAt","ccat1CompletedAt","ccat2CompletedAt","ccatOrderedAt","ccat","adminDecision","admissionsUpdatedAt",
-     "contractSigned","contractSyncedAt","contractEnvelopeStatus","contractEnvelopeId","personalInfo.email","personalInfo.yearsEngineeringRange","migrationInfo","updatedAt"]
+     "contractSigned","contractSignedAt","contractSyncedAt","contractEnvelopeStatus","contractEnvelopeId","personalInfo.email","personalInfo.yearsEngineeringRange","migrationInfo","updatedAt"]
 apps = {x.id: ser(x.to_dict()) for x in d.collection("applications").select(F).stream()}
 internal = {x.id: ser(x.to_dict()) for x in d.collection("applications_internal").select(["utmSource","utmMedium","utmCampaign"]).stream()}
 
@@ -90,8 +90,14 @@ for c in COH:
     today = (NOW.date()-st).days
     last = min(0, today)
     rng = range(-T0, last+1)
+    # signed date: contractSignedAt, else contractSyncedAt (set by the DocuSign sync, usually within ~2h of signing)
+    signers = [a for a in by[c] if accepted(a) and a.get("contractSigned")]
+    sdt = [ts(a.get("contractSignedAt")) or ts(a.get("contractSyncedAt")) for a in signers]
+    sd = [(t.date()-st).days for t in sdt if t]
     tm[LAB[c]] = {"start": START[c], "today": today, "cum": [sum(1 for x in ad if x <= o) for o in rng],
-                  "ccat_cum": [sum(1 for x in cdd if x <= o) for o in rng], "now": len(ad), "ccat_now": len(cdd)}
+                  "ccat_cum": [sum(1 for x in cdd if x <= o) for o in rng], "now": len(ad), "ccat_now": len(cdd),
+                  "signed_cum": [sum(1 for x in sd if x <= o) for o in rng], "signed_total": len(signers),
+                  "signed_dated": len(sd), "signed_after_start": sum(1 for x in sd if x > 0)}
 out["tminus"] = {"days": T0, "cohorts": tm}
 
 # 2. Funnel rates
@@ -117,6 +123,9 @@ for c in COH:
     bands[LAB[c]] = {k:b[k] for k in ["<32","32-34","35-39","40+"]}
     sc=[score(a) for a in by[c] if score(a) is not None]
     bands[LAB[c]]["mean"]=round(S.mean(sc),1) if sc else None
+    if sc:
+        sc.sort(); q=lambda f: sc[int(f*(len(sc)-1))]
+        bands[LAB[c]]["dist"]={"p10":q(.1),"p25":q(.25),"median":q(.5),"p75":q(.75),"p90":q(.9),"mean":round(S.mean(sc),1),"n":len(sc)}
 out["bands"] = bands
 
 # 5. CCAT velocity by application month (all cohorts C4+), first attempt within 14d
