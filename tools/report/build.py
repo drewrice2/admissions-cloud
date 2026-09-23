@@ -75,8 +75,8 @@ for c in COH:
 out["pacing"] = pace
 
 # 1b. Countdown pacing: cumulative volume at T-minus days before cohort start (window: T-11 weeks -> T-0).
-# Start dates: currentCohort.startDate in apply_admin/settings for the live cohort; past cohorts from
-# kickoff comms (no per-cohort start date is stored in Firestore).
+# Start dates: currentCohort.startDate in apply_admin/settings for the live cohort; past cohorts from the
+# "Final - 2026 Gauntlet AI Schedule" sheet (G4-G7 remote start). No per-cohort start date is stored in Firestore.
 START = {"cohort_4": "2026-02-16", "cohort_5": "2026-04-27", "cohort_6": "2026-07-06", "cohort_7": "2026-09-14"}
 cur = (hq.db().collection("apply_admin").document("settings").get().to_dict() or {}).get("currentCohort") or {}
 if cur.get("id") and cur.get("startDate"): START[cur["id"]] = cur["startDate"][:10]

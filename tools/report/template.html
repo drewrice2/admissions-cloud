@@ -177,11 +177,11 @@ td.num{font-family:var(--mono)}
 
     <div class="card wide">
       <h3>Accepted but unsigned, by days since acceptance</h3>
-      <p class="why">This is the pool closest to revenue. It's split by whether a DocuSign envelope has gone out, because a stuck candidate and a contract nobody sent need different fixes.</p>
+      <p class="why">Accepted candidates who haven't signed yet, bucketed by how long ago they were accepted. Every accepted candidate already has an agreement waiting, so the only question is how long they've been sitting on it relative to the cohort's start date.</p>
       <div class="legend" id="uns-legend"></div>
       <div class="chart" id="uns"></div>
-      <p class="read" id="uns-read"></p>
-      <p class="foot">Age is measured from <code>admissionsUpdatedAt</code>. "Not sent" means no <code>contractEnvelopeId</code> is on the record.</p>
+      <div class="read" id="uns-read"></div>
+      <p class="foot">Age is measured from <code>admissionsUpdatedAt</code> (last admissions touch), so it can understate how long someone has held the offer.</p>
     </div>
   </div>
 </section>
@@ -201,6 +201,9 @@ td.num{font-family:var(--mono)}
       <h3>Source quality: CCAT 40+ rate by UTM source</h3>
       <p class="why">Which channels bring quality and which only bring volume. Only sources with 15 or more CCAT-takers are shown. The whisker is a 90% Wilson interval.</p>
       <div class="chart" id="src"></div>
+      <div class="sub">Volume by source: applicants split by what happened on the CCAT, with totals</div>
+      <div class="legend" id="srcbar-legend"></div>
+      <div class="chart" id="srcbar"></div>
       <p class="read" id="src-read"></p>
       <p class="foot" id="src-foot"></p>
     </div>
@@ -517,33 +520,38 @@ mount("sla", (host, W) => {
 (() => { const S = D.sla; document.getElementById("sla-read").innerHTML = `Median time from CCAT to decision: <b>${S.C7.median}d</b> for C7 and <b>${S.C8.median}d</b> for C8. The tail is what matters: 1 in 10 C7 applicants waited ${S.C7.p90}+ days, and C8 is at ${S.C8.p90}+ days.`; })();
 
 /* ---------- 8. unsigned ---------- */
-const UNS = [["0-7", "0–7d"], ["8-14", "8–14d"], ["15-30", "15–30d"], ["31+", "31+d"], ["unknown", "no date"]];
-legend("uns-legend", [["var(--neutral)", "envelope sent, not signed"], ["var(--crit)", "no envelope sent"]]);
+const UNS = [["0-7", "0–7d", "var(--a1)"], ["8-14", "8–14d", "var(--a2)"], ["15-30", "15–30d", "var(--a3)"], ["31+", "31+d", "var(--a4)"], ["unknown", "no date", "var(--neutral)"]];
+const unsN = (c, k) => D.unsigned[c][k].sent + D.unsigned[c][k]["not sent"];
+legend("uns-legend", UNS.map(u => [u[2], u[1] + (u[0] === "unknown" ? "" : " since acceptance")]));
 mount("uns", (host, W) => {
   const U = D.unsigned, cs = Object.keys(U), panelW = W < 560 ? W : W / 2, H0 = 170, H = (W < 560 ? cs.length : 1) * (H0 + 10);
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
-  const vmax = Math.max(4, niceMax(Math.max(...cs.flatMap(c => UNS.map(u => U[c][u[0]].sent + U[c][u[0]]["not sent"])))));
+  const vmax = Math.max(4, niceMax(Math.max(...cs.flatMap(c => UNS.map(u => unsN(c, u[0]))))));
   cs.forEach((c, i) => {
     const ox = W < 560 ? 0 : i * panelW, oy = W < 560 ? i * (H0 + 10) : 0, m = { l: 26, r: 12, t: 22, b: 22 };
-    const y = v => oy + H0 - m.b - v / vmax * (H0 - m.t - m.b);
-    txt(svg, ox + 4, oy + 12, `${c} · ${UNS.reduce((a, u) => a + U[c][u[0]].sent + U[c][u[0]]["not sent"], 0)} accepted, unsigned`, { class: "lbl" });
+    const y = v => oy + H0 - m.b - v / vmax * (H0 - m.t - m.b), st = TC[c].start, dd = TC[c].today;
+    const tot = UNS.reduce((a, u) => a + unsN(c, u[0]), 0);
+    txt(svg, ox + 4, oy + 12, `${c} · ${tot} accepted, unsigned · ${dd >= 0 ? `started ${fmtD(st)}` : `T-${Math.round(-dd / 7)}w to start`}`, { class: "lbl" });
     for (const t of ticks(vmax, vmax <= 8 ? vmax / 2 : 4)) { s("line", { x1: ox + m.l, x2: ox + panelW - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); txt(svg, ox + m.l - 5, y(t) + 4, Math.round(t), { "text-anchor": "end" }); }
     const slot = (panelW - m.l - m.r) / UNS.length, bw = Math.min(24, slot - 10);
     UNS.forEach((u, j) => {
-      const v = U[c][u[0]], bx = ox + m.l + j * slot + (slot - bw) / 2;
+      const v = unsN(c, u[0]), bx = ox + m.l + j * slot + (slot - bw) / 2;
       txt(svg, bx + bw / 2, oy + H0 - 6, u[1], { "text-anchor": "middle" });
-      const hs = y(0) - y(v.sent), hn = y(0) - y(v["not sent"]);
-      if (v.sent) s("path", { d: v["not sent"] ? `M${bx},${y(0)}h${bw}v-${hs}h-${bw}z` : vbar(bx, y(v.sent), bw, hs), fill: "var(--neutral)" }, svg);
-      if (v["not sent"]) s("path", { d: vbar(bx, y(v.sent + v["not sent"]), bw, hn - (v.sent ? 2 : 0)), fill: "var(--crit)" }, svg);
-      if (v.sent + v["not sent"]) txt(svg, bx + bw / 2, y(v.sent + v["not sent"]) - 5, v.sent + v["not sent"], { "text-anchor": "middle", class: "val" });
+      if (v) { s("path", { d: vbar(bx, y(v), bw, y(0) - y(v)), fill: u[2] }, svg); txt(svg, bx + bw / 2, y(v) - 5, v, { "text-anchor": "middle", class: "val" }); }
       const hit = s("rect", { x: ox + m.l + j * slot, y: oy + m.t, width: slot, height: H0 - m.t - m.b, fill: "transparent" }, svg);
-      hit.addEventListener("pointermove", e => tip.show(`<div class="t">${c} · ${u[1]} since acceptance</div>${row("var(--neutral)", "sent, unsigned", v.sent)}${row("var(--crit)", "no envelope", v["not sent"])}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
+      hit.addEventListener("pointermove", e => tip.show(`<div class="t">${c} · ${u[1]} since acceptance</div>${row(u[2], "accepted, unsigned", v)}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
       hit.addEventListener("pointerleave", () => tip.hide());
     });
   });
 });
-(() => { const U = D.unsigned, ns = c => UNS.reduce((a, u) => a + U[c][u[0]]["not sent"], 0); document.getElementById("uns-read").innerHTML = `<b>${ns("C7") + ns("C8")}</b> accepted candidates have never been sent a contract (C7 ${ns("C7")}, C8 ${ns("C8")}). That's the cheapest fix on the page. In a sample of recent DocuSign envelopes, most were signed within minutes of being sent, so the delay tends to sit between acceptance and sending the contract.`; })();
-
+(() => {
+  const tot = c => UNS.reduce((a, u) => a + unsN(c, u[0]), 0), SD = ["C6", "C7"].filter(c => TC[c].signed_dated);
+  const late = SD.map(c => `${c} ${pct(atW(c, "signed_cum", 0) - atW(c, "signed_cum", 2), atW(c, "signed_cum", 0))}`).join(", ");
+  document.getElementById("uns-read").innerHTML = `<ul class="steps">
+    <li><b>C7's ${tot("C7")} unsigned are past kickoff.</b> C7 started ${fmtD(TC.C7.start)}, so these people are no longer "slow to sign". Each one should be closed out as withdrawn or explicitly deferred to C8.</li>
+    <li><b>C8's ${tot("C8")} aren't late yet.</b> ${unsN("C8", "31+")} were accepted more than 30 days ago, but C8 is still about ${Math.round(-TC.C8.today / 7)} weeks from kickoff. Share of signatures that landed in the final two weeks before start: ${late}. Signing clusters at the deadline, so an unsigned C8 acceptance today is normal.</li>
+    <li><b>What to watch:</b> once C8 is inside T-4w, anyone accepted more than 30 days earlier who still hasn't signed is the at-risk list.</li></ul>`;
+})();
 /* ---------- 9. retake ---------- */
 mount("retake", (host, W) => {
   const R = D.retake, H = 210, m = { l: 34, r: 8, t: 14, b: 30 }, hs = R.hist;
@@ -566,7 +574,8 @@ mount("retake", (host, W) => {
 });
 (() => {
   const R = D.retake;
-  document.getElementById("retake-read").innerHTML = `Across ${R.n} retakes: median <b>+${R.median}</b>. <b>${pct(R.ge7, R.n)}</b> jump 7 or more points, and only ${pct(R.le0, R.n)} stay flat or drop. A retake is close to a free ~5-point bump. That argues for comparing retakers against a higher bar, or weighting attempt 1.`;
+  const t40 = R.to40["32-34"], up = R.n - R.le0;
+  document.getElementById("retake-read").innerHTML = `<b>Takeaway: a retake is worth about +${R.median} points almost automatically (${pct(up, R.n)} improve), so a 40 on attempt 2 isn't the same signal as a 40 on attempt 1.</b> ${pct(t40[0], t40[1])} of the 32–34 retake zone clears 40 on the retake, which makes the retake window close to a coin flip into auto-advance. Consider a higher bar for retakers, or weighting attempt 1.`;
   const t = R.to40, order = ["<32", "32-34", "35-39"];
   document.getElementById("retake-tbl").innerHTML = `<tr><th>First-attempt band</th><th>Retakers</th><th>Reached 40+ on retake</th></tr>` + order.filter(k => t[k]).map(k => `<tr><td>${k}</td><td class="num">${t[k][1]}</td><td class="num">${t[k][0]} (${pct(t[k][0], t[k][1])})</td></tr>`).join("");
 })();
@@ -596,17 +605,22 @@ mount("src", (host, W) => {
   const all = S.reduce((a, o) => [a[0] + o.pass40, a[1] + o.ccat], [0, 0]), avg = Math.round(100 * all[0] / all[1]);
   const srt = S.slice().sort((a, b) => a.pass40 / a.ccat - b.pass40 / b.ccat), low = srt.slice(0, 3), top = srt.at(-1);
   document.getElementById("src-read").innerHTML = `The all-source average is <b>${avg}%</b> 40+ (the grey rule). The lowest are ${low.map(o => `${o.src} <b>${r(o)}%</b>`).join(", ")}: volume that mostly doesn't clear 40. The highest is ${top.src} at ${r(top)}%, but on only ${top.ccat} CCAT-takers.`;
-  document.getElementById("src-foot").textContent = `UTM coverage: only ${fmt(D.utm_coverage[0])} of ${fmt(D.utm_coverage[1])} C4–C8 applicants (${pct(D.utm_coverage[0], D.utm_coverage[1])}) carry a utmSource. "(none)" is the untracked majority. Sources are normalized (facebook/ig/linktree_ig → meta, austenLI6.24 → austen).`;
+  const none = D.sources.find(r => r.src === "(none)");
+  document.getElementById("src-foot").textContent = `UTM coverage: only ${fmt(D.utm_coverage[0])} of ${fmt(D.utm_coverage[1])} C4–C8 applicants (${pct(D.utm_coverage[0], D.utm_coverage[1])}) carry a utmSource. The untracked "(none)" group (${fmt(none ? none.apps : 0)} applicants) is left off the volume bars so the tracked sources stay readable. Sources are normalized (facebook/ig/linktree_ig → meta, austenLI6.24 → austen).`;
 })();
 
+legend("srcbar-legend", [["var(--o4)", "CCAT 40+"], ["var(--o2)", "CCAT under 40"], ["var(--neutral)", "no CCAT"]]);
+mount("srcbar", (host, W) => {
+  const rows = D.sources.filter(r => r.src !== "(none)").sort((a, b) => b.apps - a.apps).map(r => ({ label: r.src, v: { p40: r.pass40, sub: r.ccat - r.pass40, none: r.apps - r.ccat } }));
+  stackRows(host, W, rows, [["p40", "var(--o4)", "CCAT 40+"], ["sub", "var(--o2)", "CCAT under 40"], ["none", "var(--neutral)", "no CCAT"]], { lw: Math.min(150, W * .34), rpad: 44, inkOn: k => (k === "none" ? "var(--ink)" : "#fff") });
+});
 /* ---------- roadblocks ---------- */
 const BL = [
   ["hard", "No live data path from this page", "Artifacts can't reach Firestore: the CSP blocks fetch, and there's no Firebase connector. This page is a snapshot rebuilt by tools/report/build.py. For live data, either HQ renders these charts itself from Firestore, or a daily scheduled job rebuilds and republishes this page."],
   ["hard", "No acceptedAt or signedAt timestamps", "Acceptance and signing times aren't recorded. admissionsUpdatedAt is overwritten on every admissions touch, and contractSyncedAt only exists on about 105 records. A true accept → signed lag chart needs decisionAt and contractSignedAt written once and never overwritten. DocuSign has completedDateTime and could backfill it."],
-  ["hard", "Past cohort start dates aren't stored", "apply_admin/settings holds only the current cohort's startDate (C8: Feb 1, 2027). The C4–C7 start dates in the pacing chart are hard-coded from kickoff emails. HQ should keep startDate, applicationStartDate and applicationDeadline for every cohort in cohortHistory."],
+  ["soft", "Cohort start dates live outside Firestore", "C4–C7 start dates match the \"Final - 2026 Gauntlet AI Schedule\" sheet (G4 Feb 16, G5 Apr 27, G6 Jul 6, G7 Sep 14) and are set in tools/report/build.py. C8 (Feb 1, 2027) comes from apply_admin/settings, since the 2027 calendar isn't in that sheet yet. For HQ to draw this chart itself, cohortHistory should carry startDate for every cohort."],
   ["soft", "The form flow changed around C7 and C8", "C8 records are created at submission, while earlier cohorts start at step 1. So started-based rates aren't comparable across that boundary. A funnel on a common stage such as CCAT-taker is safer, or HQ could log a formStartedAt."],
   ["soft", "UTM coverage is 36%", "Two-thirds of applicants have no utmSource in applications_internal, so the source-quality view speaks only for tracked traffic. Also, sources are inconsistent (reddit/Reddit, referral/referrals, facebook/meta)."],
-  ["soft", "C4 and C5 decisions predate adminDecision", "C4 has no decision or contract data. C5 acceptances are inferred from status. Cross-cohort accepted/signed comparisons are only apples-to-apples from C6 on."],
 ];
 document.getElementById("blockers").innerHTML = BL.map(([k, h, p]) => `<div class="blk"><span class="pill ${k}">${k === "hard" ? "Blocks a chart" : "Caveat"}</span><h4>${h}</h4><p>${p}</p></div>`).join("");
 
