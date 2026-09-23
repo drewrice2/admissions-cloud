@@ -120,10 +120,14 @@ td.num{font-family:var(--mono)}
 </header>
 
 <section>
-  <h2>This week</h2>
-  <p class="why" style="margin-top:-6px">Rolling 7 days ending at the data timestamp, across every cohort. The delta compares with the previous 7 days, and the sparkline shows the last 12 weeks. * Accepted is approximate until HQ writes a decision timestamp.</p>
-  <div class="tiles" id="weekly"></div>
+  <h2>C8 right now</h2>
   <div class="tiles" id="tiles"></div>
+</section>
+
+<section>
+  <h2>Week over week (WoW)</h2>
+  <p class="why" style="margin-top:-6px">Every tile in this row is a week-over-week comparison: the last 7 days (rolling, ending at the data timestamp) vs the 7 days before, across every cohort. The sparkline shows the last 12 rolling weeks. * Accepted is approximate until HQ writes a decision timestamp.</p>
+  <div class="tiles" id="weekly"></div>
 </section>
 
 <div class="card tldr">
@@ -762,7 +766,7 @@ mount("srcbar", (host, W) => {
   document.getElementById("weekly").innerHTML = WKD.metrics.map(mm => {
     const a = mm.series, cur = a.at(-1), prev = a.at(-2), avg = a.slice(-5, -1).reduce((x, y) => x + y, 0) / 4;
     const d = cur - prev, cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
-    return `<div class="tile wk"><span class="k">${mm.label}${mm.approx ? " *" : ""}</span><div class="top"><span class="v">${fmt(cur)}</span><span class="d ${cls}">${d > 0 ? "▲ +" : d < 0 ? "▼ " : "± "}${d} vs last wk</span></div>${spark(a, "var(--c4)")}<span class="s">4-week avg ${avg.toFixed(0)}</span></div>`;
+    return `<div class="tile wk"><span class="k">${mm.label}${mm.approx ? " *" : ""}</span><div class="top"><span class="v">${fmt(cur)}</span><span class="d ${cls}">${d > 0 ? "▲ +" : d < 0 ? "▼ " : "± "}${d} WoW</span></div>${spark(a, "var(--c4)")}<span class="s">4-week avg ${avg.toFixed(0)}</span></div>`;
   }).join("");
 })();
 
