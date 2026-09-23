@@ -117,19 +117,21 @@ td.num{font-family:var(--mono)}
       <p class="why">This replaces "applications this week." Every cohort is set on the same countdown, from 11 weeks before start (T-11w) to kickoff (T-0). That answers whether the live cohort is on track to fill by day one. A line starts above zero when applications arrived before T-11w. Deferrals carried over from the previous cohort are left out.</p>
       <div class="seg" role="group" aria-label="Metric"><button id="pace-apps" aria-pressed="true">Applications</button><button id="pace-ccat" aria-pressed="false">CCAT completed</button></div>
       <div class="legend" id="pace-legend"></div>
-      <div class="chart" id="pace"></div>
-      <div class="sub">Same curves as a share of each cohort's total at kickoff. This shows velocity: how early a cohort fills, not how big it gets.</div>
+      <div class="sub">Share of each cohort's total at kickoff. This shows velocity: how early a cohort fills, not how big it gets.</div>
       <div class="chart" id="pace-pct"></div>
+      <div class="sub">Raw counts</div>
+      <div class="chart" id="pace"></div>
       <p class="read" id="pace-read"></p>
     </div>
 
     <div class="card wide">
       <h3>Signed seats counting down to cohort start</h3>
-      <p class="why">The same countdown for signed enrollment agreements: the count first, then each cohort's share of its kickoff total. This is the funnel's output, so the curve shows how late the roster locks in.</p>
+      <p class="why">The same countdown for signed enrollment agreements: each cohort's share of its kickoff total first, then the raw count. This is the funnel's output, so the curve shows how late the roster locks in.</p>
       <div class="legend" id="signed-legend"></div>
-      <div class="chart" id="signed"></div>
       <div class="sub">Signed as a share of each cohort's signed total at kickoff</div>
       <div class="chart" id="signed-pct"></div>
+      <div class="sub">Raw counts</div>
+      <div class="chart" id="signed"></div>
       <p class="read" id="signed-read"></p>
       <p class="foot" id="signed-foot"></p>
     </div>
