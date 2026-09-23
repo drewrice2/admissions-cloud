@@ -267,12 +267,13 @@ const TM = D.tminus, TC = TM.cohorts, PCOH = COH.filter(c => c !== "C4");
 const fmtD = iso => new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const offNote = c => TC[c].today < -TM.days ? ` (T-${Math.round(-TC[c].today / 7)}w today, joins chart ${fmtD(new Date(Date.parse(TC[c].start) - TM.days * 864e5).toISOString().slice(0, 10))})` : "";
 legend("pace-legend", PCOH.map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + offNote(c)]), "line");
-legend("signed-legend", PCOH.filter(c => TC[c].signed_dated).map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + offNote(c)]), "line");
-function countdown(host, W, key, pctMode) {
+legend("signed-legend", PCOH.filter(c => TC[c].signed_total && c !== "C5").map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + offNote(c)]), "line");
+document.getElementById("signed-legend").insertAdjacentHTML("beforeend", `<span><i class="sw" style="background:transparent;border:2px solid var(--ink3);border-radius:50%;width:10px;height:10px"></i>DocuSign-exact checkpoint (ledger)</span>`);
+function countdown(host, W, key, pctMode, skip = []) {
   const H = Math.max(220, Math.min(340, W * 0.46)), m = { l: 48, r: 64, t: 12, b: 34 };
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cumulative count by weeks before cohort start" }, host);
   const X = TM.days;
-  const series = PCOH.map(c => {
+  const series = PCOH.filter(c => !skip.includes(c)).map(c => {
     const raw = TC[c][key] || [], done = TC[c].today >= 0, tot = raw[X];
     if (!raw.length || (pctMode && (!done || !tot))) return null;
     return { c, raw, v: pctMode ? raw.map(n => n / tot) : raw };
@@ -297,6 +298,10 @@ function countdown(host, W, key, pctMode) {
   lab.sort((a, b) => a.y - b.y); for (let i = 1; i < lab.length; i++) if (lab[i].y - lab[i - 1].y < 13) lab[i].y = lab[i - 1].y + 13;
   for (const l of lab) txt(svg, l.left ? l.x - 7 : l.x + 7, l.y + 4, l.t, { class: "val", "text-anchor": l.left ? "end" : "start" });
   if (pctMode) { s("line", { x1: x(X - 28), x2: x(X - 28), y1: m.t, y2: H - m.b, stroke: "var(--line)" }, svg); }
+  if (key === "signed_cum") for (const c of Object.keys(TM.ledger)) {
+    const L = TM.ledger[c], tot = L[0];
+    for (const [w, n] of Object.entries(L)) { const v = pctMode ? n / tot : n; s("circle", { cx: x(X - w * 7), cy: y(v), r: 4.5, fill: "var(--surface)", stroke: cvar(c), "stroke-width": 2 }, svg); }
+  }
   const tip = tipFor(host), cross = s("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink3)", opacity: 0 }, svg);
   const hit = s("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
   hit.addEventListener("pointermove", e => {
@@ -309,8 +314,8 @@ function countdown(host, W, key, pctMode) {
 }
 const drawPace = mount("pace", (host, W) => countdown(host, W, paceMetric, false));
 const drawPacePct = mount("pace-pct", (host, W) => countdown(host, W, paceMetric, true));
-mount("signed", (host, W) => countdown(host, W, "signed_cum", false));
-mount("signed-pct", (host, W) => countdown(host, W, "signed_cum", true));
+mount("signed", (host, W) => countdown(host, W, "signed_cum", false, ["C5"]));
+mount("signed-pct", (host, W) => countdown(host, W, "signed_cum", true, ["C5"]));
 const DONE = PCOH.filter(c => TC[c].today >= 0);
 const atW = (c, k, w) => TC[c][k][TM.days - w * 7];
 function paceRead() {
@@ -327,13 +332,13 @@ for (const [id, k] of [["pace-apps", "cum"], ["pace-ccat", "ccat_cum"]]) documen
   paceMetric = k; document.getElementById("pace-apps").setAttribute("aria-pressed", k === "cum"); document.getElementById("pace-ccat").setAttribute("aria-pressed", k === "ccat_cum"); drawPace(); drawPacePct(); paceRead();
 });
 (() => {
-  const SD = DONE.filter(c => TC[c].signed_dated);
-  document.getElementById("signed-read").innerHTML = `Signed at kickoff: ${SD.map(c => `${c} <b>${atW(c, "signed_cum", 0)}</b>`).join(", ")}. ` +
-    `Share signed by T-4w: ${SD.map(c => `${c} <b>${pct(atW(c, "signed_cum", 4), atW(c, "signed_cum", 0))}</b>`).join(", ")}. ` +
-    `Share signed in the final week: ${SD.map(c => `${c} ${pct(atW(c, "signed_cum", 0) - atW(c, "signed_cum", 1), atW(c, "signed_cum", 0))}`).join(", ")}.`;
-  document.getElementById("signed-foot").textContent = "There's no dedicated sign timestamp for most records. Sign date is contractSignedAt when present, otherwise contractSyncedAt; where a record has both, the two usually fall within about 2 hours. Dated signers: " +
-    PCOH.map(c => `${c} ${TC[c].signed_dated}/${TC[c].signed_total}` + (TC[c].signed_after_start ? ` (${TC[c].signed_after_start} after kickoff, not shown)` : "")).join(", ") +
-    ". C5 contracts predate the DocuSign sync and have no sign dates, so C5 is left off this chart.";
+  const L = TM.ledger, sh = (c, w) => pct(L[c][w], L[c][0]);
+  document.getElementById("signed-read").innerHTML = `<ul class="steps">
+    <li><b>C6 front-loaded, C7 back-loaded.</b> By DocuSign's exact dates, C6 had <b>${L.C6[10]}</b> signed at T-10w (${sh("C6", 10)} of its Day 1 total), against C7's ${L.C7[10]} (${sh("C7", 10)}).</li>
+    <li><b>C6's early work didn't compound.</b> C6 then went flat: ${L.C6[10]} → ${L.C6[4]} from T-10w to T-4w, while C7 climbed steadily (${L.C7[10]} → ${L.C7[4]}). C6's early signers were mostly carried forward from earlier contracts. New C6 signing didn't start until the last month.</li>
+    <li><b>Both land in the same place.</b> Each had 38 signed at T-1w, and ${fmt(L.C6[0] - L.C6[1])} (C6) and ${fmt(L.C7[0] - L.C7[1])} (C7) signed in the final week. That final week alone is about ${Math.round(100 * ((L.C6[0] - L.C6[1]) / L.C6[0] + (L.C7[0] - L.C7[1]) / L.C7[0]) / 2)}% of a cohort.</li></ul>`;
+  document.getElementById("signed-foot").textContent = "Lines come from Firestore: contractSignedAt, else contractSyncedAt. The DocuSign-to-Firestore sync only began around Jun 3, 2026, so signers from before it are undated; they're counted as signed before T-11w, which matches the ledger. Hollow dots are DocuSign-exact confirmed counts from the Sep 15 ledger, as a check on the lines. Dated signers: " +
+    PCOH.map(c => `${c} ${TC[c].signed_dated}/${TC[c].signed_total}`).join(", ") + ". C5 is left off because it has no sign dates.";
 })();
 
 /* ---------- 2. funnel rates (small multiples) ---------- */

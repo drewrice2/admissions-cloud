@@ -93,12 +93,17 @@ for c in COH:
     # signed date: contractSignedAt, else contractSyncedAt (set by the DocuSign sync, usually within ~2h of signing)
     signers = [a for a in by[c] if accepted(a) and a.get("contractSigned")]
     sdt = [ts(a.get("contractSignedAt")) or ts(a.get("contractSyncedAt")) for a in signers]
-    sd = [(t.date()-st).days for t in sdt if t]
+    # Undated signers predate the DocuSign->Firestore sync (~Jun 3, 2026); the DocuSign-exact ledger shows
+    # C6's 13 of them were already signed by T-10w, so count them as signed before the window opens.
+    sd = [(t.date()-st).days if t else -10**6 for t in sdt]
     tm[LAB[c]] = {"start": START[c], "today": today, "cum": [sum(1 for x in ad if x <= o) for o in rng],
                   "ccat_cum": [sum(1 for x in cdd if x <= o) for o in rng], "now": len(ad), "ccat_now": len(cdd),
                   "signed_cum": [sum(1 for x in sd if x <= o) for o in rng], "signed_total": len(signers),
-                  "signed_dated": len(sd), "signed_after_start": sum(1 for x in sd if x > 0)}
-out["tminus"] = {"days": T0, "cohorts": tm}
+                  "signed_dated": sum(1 for t in sdt if t), "signed_after_start": sum(1 for x in sd if x > 0)}
+# DocuSign-exact confirmed counts at weeks-before-Day-1, from "ledger-v0-summary" (Drive, built 2026-09-15).
+# C6 and C7 are complete cohorts, so these checkpoints are final.
+LEDGER = {"C6": {10: 13, 8: 13, 6: 13, 4: 14, 2: 25, 1: 38, 0: 50}, "C7": {10: 4, 8: 10, 6: 14, 4: 21, 2: 31, 1: 38, 0: 54}}
+out["tminus"] = {"days": T0, "cohorts": tm, "ledger": LEDGER}
 
 # 2. Funnel rates
 fun = {}
