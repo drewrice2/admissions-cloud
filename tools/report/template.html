@@ -165,7 +165,7 @@ td.num{font-family:var(--mono)}
 
     <div class="card wide" data-spec="signed_countdown">
       <h3>Signed seats counting down to cohort start</h3>
-      <p class="why">The same countdown for signed enrollment agreements, from six weeks out (T-6w): each cohort's share of its kickoff total first, then the raw count. This is the funnel's output, so the curve shows how late the roster locks in.</p>
+      <p class="why" id="signed-why"></p>
       <div class="legend" id="signed-legend"></div>
       <div class="sub">Signed as a share of each cohort's signed total at kickoff</div>
       <div class="chart" id="signed-pct"></div>
@@ -473,6 +473,10 @@ paceRead();
 for (const [id, k] of [["pace-apps", "cum"], ["pace-ccat", "ccat_cum"]]) document.getElementById(id).addEventListener("click", () => {
   paceMetric = k; document.getElementById("pace-apps").setAttribute("aria-pressed", k === "cum"); document.getElementById("pace-ccat").setAttribute("aria-pressed", k === "ccat_cum"); drawPace(); drawPacePct(); paceRead();
 });
+(() => {
+  const L0 = TM.ledger, last2 = c => Math.round(100 * (L0[c][0] - L0[c][2]) / L0[c][0]);
+  document.getElementById("signed-why").innerHTML = `Signed agreements over the 6 weeks before Day 1. <b>C6 signed ${last2("C6")}% and C7 ${last2("C7")}% of their class in the final two weeks, because that's when most of their applicants arrived.</b>`;
+})();
 (() => {
   const L = TM.ledger, sh = (c, w) => pct(L[c][w], L[c][0]);
   document.getElementById("signed-read").innerHTML = `<ul class="steps">
