@@ -212,13 +212,6 @@ td.num{font-family:var(--mono)}
     </div>
 
 
-    <div class="card wide" data-spec="decision_sla">
-      <h3>Decision SLA: CCAT complete → decision</h3>
-      <p class="why">Days from CCAT completion to the admissions decision. The bar runs from p25 to p75, the tick is the median, and the whisker extends to p90.</p>
-      <div class="chart" id="sla"></div>
-      <p class="read" id="sla-read"></p>
-      <p class="foot">Decision time is read from <code>admissionsUpdatedAt</code>, which is the last admissions touch and not a dedicated decision timestamp. It overstates lag wherever a record was touched again after the decision.</p>
-    </div>
 
 
     <div class="card wide" data-spec="unsigned_aging">
@@ -321,12 +314,6 @@ td.num{font-family:var(--mono)}
    "what": "Group by `createdAt` month: % with first_ccat − createdAt ≤ 14 days. MoM bars = difference in percentage points. Surge month = applicants ≥ 2× the median month.",
    "fields": "`createdAt`, first_ccat.",
    "caveats": "The current month is still maturing and can only rise."
-  },
-  "decision_sla": {
-   "title": "Decision SLA",
-   "what": "For decided records (C7+): days from `ccatCompletedAt` to `admissionsUpdatedAt`; p25/median/p75/p90.",
-   "fields": "`ccatCompletedAt`, `adminDecision`, `admissionsUpdatedAt`.",
-   "caveats": "Overstates the lag when a record is touched after the decision. Needs `decisionAt`."
   },
   "unsigned_aging": {
    "title": "Accepted but unsigned",
@@ -642,27 +629,6 @@ mount("vel-mom", (host, W) => {
     hit.addEventListener("pointerleave", () => tip.hide());
   });
 });
-/* ---------- 7. SLA ---------- */
-mount("sla", (host, W) => {
-  const S = D.sla, cs = Object.keys(S).filter(c => c !== "C6"), rh = 30, gap = 14, lw = 44, H = cs.length * (rh + gap) + 24;
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
-  const vmax = niceMax(Math.max(...cs.map(c => S[c].p90))), x = v => lw + v / vmax * (W - lw - 36);
-  for (const t of Array.from({ length: Math.floor(vmax / 7) + 1 }, (_, i) => i * 7)) { s("line", { x1: x(t), x2: x(t), y1: 0, y2: H - 20, stroke: "var(--grid)" }, svg); txt(svg, x(t), H - 6, Math.round(t) + "d", { "text-anchor": "middle" }); }
-  cs.forEach((c, i) => {
-    const q = S[c], y = i * (rh + gap) + 6, cy = y + rh / 2;
-    txt(svg, 0, cy + 4, c, { class: "lbl" });
-    s("line", { x1: x(q.p75), x2: x(q.p90), y1: cy, y2: cy, stroke: cvar(c), "stroke-width": 2 }, svg);
-    s("line", { x1: x(q.p90), x2: x(q.p90), y1: cy - 6, y2: cy + 6, stroke: cvar(c), "stroke-width": 2 }, svg);
-    s("rect", { x: x(q.p25), y: y + 5, width: Math.max(2, x(q.p75) - x(q.p25)), height: rh - 10, rx: 4, fill: cvar(c), opacity: .35 }, svg);
-    s("line", { x1: x(q.median), x2: x(q.median), y1: y + 2, y2: y + rh - 2, stroke: cvar(c), "stroke-width": 3, "stroke-linecap": "round" }, svg);
-    txt(svg, x(q.p90) + 8, cy + 4, q.median + "d", { class: "val" });
-    const hit = s("rect", { x: lw, y, width: W - lw, height: rh, fill: "transparent" }, svg);
-    hit.addEventListener("pointermove", e => tip.show(`<div class="t">${c} · days to decision</div>${row(null, "p25", q.p25)}${row(cvar(c), "median", q.median)}${row(null, "p75", q.p75)}${row(null, "p90", q.p90)}${row(null, "decided", fmt(q.n))}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
-    hit.addEventListener("pointerleave", () => tip.hide());
-  });
-});
-(() => { const S = D.sla; document.getElementById("sla-read").innerHTML = `Median time from CCAT to decision: <b>${S.C7.median}d</b> for C7 and <b>${S.C8.median}d</b> for C8. The tail is what matters: 1 in 10 C7 applicants waited ${S.C7.p90}+ days, and C8 is at ${S.C8.p90}+ days.`; })();
-
 /* ---------- 8. unsigned ---------- */
 const UNS = [["0-7", "0–7d", "var(--neu)"], ["8-14", "8–14d", "var(--neu)"], ["15-30", "15–30d", "var(--warn)"], ["31+", "31+d", "var(--neg)"], ["unknown", "no date", "var(--mute)"]];
 const unsN = (c, k) => D.unsigned[c][k].sent + D.unsigned[c][k]["not sent"];
@@ -812,7 +778,7 @@ mount("qual", (host, W) => countdown(host, W, "qual_cum", false));
   document.getElementById("tldr").innerHTML = `<div class="cols">
     <div><h4><i class="dot" style="background:var(--pos)"></i>What improved</h4><ul>
       <li><b>C7 converted ${f1(r(F.C7.signed, F.C7.started) / r(F.C6.signed, F.C6.started))}× better end to end than C6</b>: applied → signed ${f1(r(F.C7.signed, F.C7.started))}% vs ${f1(r(F.C6.signed, F.C6.started))}%, on about a third of the volume.</li>
-      <li><b>Faster everywhere.</b> CCAT within 14 days rose ${f0(r(prevV.within14, prevV.n))}% → ${f0(r(lastV.within14, lastV.n))}%+ over the last three months. Median decision time is ${D.sla.C7.median}d (C7). C7 had ${f0(at4("C7"))}% of its applications in by T-4w, against ${f0(at4("C6"))}% for C6.</li>
+      <li><b>Faster everywhere.</b> CCAT within 14 days rose ${f0(r(prevV.within14, prevV.n))}% → ${f0(r(lastV.within14, lastV.n))}%+ over the last three months. C7 had ${f0(at4("C7"))}% of its applications in by T-4w, against ${f0(at4("C6"))}% for C6.</li>
     </ul></div>
     <div><h4><i class="dot" style="background:var(--neg)"></i>What hasn't</h4><ul>
       <li><b>Applicant quality is down.</b> 40+ share is ${f0(share40("C7"))}% (C7) and ${f0(share40("C8"))}% (C8 so far), against ${f0(share40("C4"))}% in C4.</li>
