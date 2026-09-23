@@ -775,7 +775,7 @@ mount("qual", (host, W) => countdown(host, W, "qual_cum", false));
   const k0 = c => TC[c].qual_cum[TM.days], F = D.funnel;
   const done = DONE.filter(c => TC[c].qual_cum.length);
   const live = PCOH.find(c => TC[c].today < 0);
-  document.getElementById("qual-read").innerHTML = `<b>Takeaway: C7 reached kickoff with ${k0("C7")} qualified candidates, against ${k0("C6")} for C6 and ${k0("C5")} for C5, yet signed about as many people as C6 (${F.C7.signed} vs ${F.C6.signed}).</b> C7 converted a smaller qualified pool much better; the ceiling now is the pool itself.` +
+  document.getElementById("qual-read").innerHTML = `<b>Takeaway: C7 reached kickoff with ${k0("C7")} qualified candidates, against ${k0("C6")} for C6 and ${k0("C5")} for C5, yet signed about as many people as C6 (${F.C7.signed} vs ${F.C6.signed}).</b> C7 converted a smaller qualified pool much better.` +
     (live ? ` ${live} has ${TC[live].qual_now} qualified so far at T-${Math.round(-TC[live].today / 7)}w.` : "");
 })();
 
