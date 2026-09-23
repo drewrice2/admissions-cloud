@@ -649,7 +649,7 @@ mount("srcbar", (host, W) => {
     </ul></div>
     <div><h4>Suggestions</h4><ul>
       <li><b>Buy quality, not volume.</b> ${lowSrc.map(o => o.src).join(", ")} brought ${fmt(lowApps)} applicants at ${f0(Math.min(...lowSrc.map(q)))}–${f0(Math.max(...lowSrc.map(q)))}% 40+. Judge channels on 40+ yield, and shift budget toward HubSpot re-engagement and referrals.</li>
-      <li><b>Raise the retake bar.</b> A retake adds a median +${R.median} points, so a second-attempt 40 is weaker evidence. Require more on attempt 2, or weight attempt 1.</li>
+      <li><b>Hold retakes to a higher bar.</b> Scores rise about ${R.median} points on a second try from practice alone, so a retake 40 is roughly a first-try ${40 - R.median}.</li>
       <li><b>Start the C8 signing push at T-4w, not T-1w.</b> Chase every acceptance older than 30 days, so the final week confirms seats rather than recruits them.</li>
     </ul></div></div>`;
 })();
