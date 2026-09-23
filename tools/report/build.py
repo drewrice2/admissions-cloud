@@ -74,6 +74,26 @@ for c in COH:
     pace[LAB[c]] = {"open": anch[c].isoformat(), "cum": cum, "ccat_cum": ccum, "pre_window": sum(1 for a in by[c] if ts(a.get("createdAt")) and (ts(a["createdAt"]).date()-anch[c]).days < -7)}
 out["pacing"] = pace
 
+# 1b. Countdown pacing: cumulative volume at T-minus days before cohort start (window: T-11 weeks -> T-0).
+# Start dates: currentCohort.startDate in apply_admin/settings for the live cohort; past cohorts from
+# kickoff comms (no per-cohort start date is stored in Firestore).
+START = {"cohort_4": "2026-02-16", "cohort_5": "2026-04-27", "cohort_6": "2026-07-06", "cohort_7": "2026-09-14"}
+cur = (hq.db().collection("apply_admin").document("settings").get().to_dict() or {}).get("currentCohort") or {}
+if cur.get("id") and cur.get("startDate"): START[cur["id"]] = cur["startDate"][:10]
+T0 = 77
+tm = {}
+for c in COH:
+    st = dt.date.fromisoformat(START[c])
+    keep = [a for a in by[c] if ts(a.get("createdAt")) and (ts(a["createdAt"]).date()-anch[c]).days >= -7]
+    ad = [(ts(a["createdAt"]).date()-st).days for a in keep]
+    cdd = [((ts(a.get("ccat1CompletedAt")) or ts(a.get("ccatCompletedAt"))).date()-st).days for a in keep if (ts(a.get("ccat1CompletedAt")) or ts(a.get("ccatCompletedAt")))]
+    today = (NOW.date()-st).days
+    last = min(0, today)
+    rng = range(-T0, last+1)
+    tm[LAB[c]] = {"start": START[c], "today": today, "cum": [sum(1 for x in ad if x <= o) for o in rng],
+                  "ccat_cum": [sum(1 for x in cdd if x <= o) for o in rng], "now": len(ad), "ccat_now": len(cdd)}
+out["tminus"] = {"days": T0, "cohorts": tm}
+
 # 2. Funnel rates
 fun = {}
 for c in COH:

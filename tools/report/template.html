@@ -102,8 +102,8 @@ td.num{font-family:var(--mono)}
   <h2>Cohort over cohort</h2>
   <div class="grid2">
     <div class="card wide">
-      <h3>Pacing: cumulative volume by days since the window opened</h3>
-      <p class="why">This replaces "applications this week." It answers whether the live cohort is on track by setting every cohort on the same clock. The open date is the Monday of the first week with 20 or more new applications. Deferrals carried over from the previous cohort are left out.</p>
+      <h3>Pacing: cumulative volume counting down to cohort start</h3>
+      <p class="why">This replaces "applications this week." Every cohort is set on the same countdown, from 11 weeks before start (T-11w) to kickoff (T-0). That answers whether the live cohort is on track to fill by day one. A line starts above zero when applications arrived before T-11w. Deferrals carried over from the previous cohort are left out.</p>
       <div class="seg" role="group" aria-label="Metric"><button id="pace-apps" aria-pressed="true">Applications</button><button id="pace-ccat" aria-pressed="false">CCAT completed</button></div>
       <div class="legend" id="pace-legend"></div>
       <div class="chart" id="pace"></div>
@@ -249,9 +249,9 @@ function mount(id, fn) { const host = document.getElementById(id); const draw = 
 (() => {
   const P = D.projection, F = D.funnel;
   const tiles = [
-    ["C8 applications, day " + P.day, fmt(P.c8_apps), `C7 had ${fmt(P.c7_apps_same_day)} at day ${P.day}`],
-    ["C8 CCAT-takers, day " + P.day, fmt(P.c8_ccat), `C7 had ${fmt(P.c7_ccat_same_day)} at day ${P.day} (${pct(P.c8_ccat - P.c7_ccat_same_day, P.c7_ccat_same_day)} ahead)`],
-    ["C8 accepted / signed now", `${F.C8.accepted} / ${F.C8.signed}`, "includes C7 deferrals"],
+    ["C8 applications, day " + P.day + " of intake", fmt(P.c8_apps), `C7 had ${fmt(P.c7_apps_same_day)} at day ${P.day}`],
+    ["C8 CCAT-takers, day " + P.day + " of intake", fmt(P.c8_ccat), `C7 had ${fmt(P.c7_ccat_same_day)} at day ${P.day} (${pct(P.c8_ccat - P.c7_ccat_same_day, P.c7_ccat_same_day)} ahead)`],
+    ["C8 signed / accepted now", `${F.C8.signed} / ${F.C8.accepted}`, "includes C7 deferrals"],
     ["C8 projected signed", `${P.signed_lo}–${P.signed_hi}`, `range across C5–C7 CCAT→signed rates`],
   ];
   document.getElementById("tiles").innerHTML = tiles.map(([k, v, sub]) => `<div class="tile"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`).join("");
@@ -259,47 +259,50 @@ function mount(id, fn) { const host = document.getElementById(id); const draw = 
 
 /* ---------- 1. pacing ---------- */
 let paceMetric = "cum";
-legend("pace-legend", COH.map(c => [cvar(c), c + " · opened " + D.pacing[c].open]), "line");
+const TM = D.tminus, TC = TM.cohorts;
+const fmtD = iso => new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+legend("pace-legend", COH.map(c => [cvar(c), `${c} · starts ${fmtD(TC[c].start)}` + (TC[c].today < -TM.days ? ` (T-${Math.round(-TC[c].today / 7)}w today, not on chart yet)` : "")]), "line");
 const drawPace = mount("pace", (host, W) => {
-  const H = Math.max(240, Math.min(360, W * 0.5)), m = { l: 44, r: 40, t: 12, b: 34 };
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cumulative pacing by cohort" }, host);
-  const X = 120, series = COH.map(c => ({ c, v: D.pacing[c][paceMetric] }));
-  const ymax = niceMax(Math.max(...series.flatMap(s => s.v)));
-  const x = d => m.l + d / X * (W - m.l - m.r), y = v => H - m.b - v / ymax * (H - m.t - m.b);
+  const H = Math.max(240, Math.min(360, W * 0.5)), m = { l: 44, r: 64, t: 12, b: 34 };
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cumulative volume counting down to cohort start" }, host);
+  const X = TM.days, series = COH.map(c => ({ c, v: TC[c][paceMetric] })).filter(o => o.v.length);
+  const ymax = niceMax(Math.max(...series.flatMap(o => o.v)));
+  const x = i => m.l + i / X * (W - m.l - m.r), y = v => H - m.b - v / ymax * (H - m.t - m.b);
   for (const t of ticks(ymax)) { s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); txt(svg, m.l - 6, y(t) + 4, fmt(Math.round(t)), { "text-anchor": "end" }); }
-  for (let d = 0; d <= X; d += W < 520 ? 28 : 14) txt(svg, x(d), H - m.b + 16, d === 0 ? "day 0" : d, { "text-anchor": "middle" });
-  txt(svg, W - m.r, H - 4, "days since window opened", { "text-anchor": "end" });
-  const today = D.projection.day;
-  s("line", { x1: x(today), x2: x(today), y1: m.t, y2: H - m.b, stroke: "var(--ink3)", "stroke-width": 1 }, svg);
-  txt(svg, x(today) + 4, m.t + 10, "C8 today", { "text-anchor": "start" });
+  for (let w = 11; w >= 0; w -= W < 520 ? 2 : 1) { const i = X - w * 7; s("line", { x1: x(i), x2: x(i), y1: H - m.b, y2: H - m.b + 4, stroke: "var(--line)" }, svg); txt(svg, x(i), H - m.b + 16, w === 0 ? "T-0" : `T-${w}w`, { "text-anchor": "middle" }); }
+  s("line", { x1: x(X), x2: x(X), y1: m.t, y2: H - m.b, stroke: "var(--ink3)", "stroke-width": 1 }, svg);
+  txt(svg, x(X) - 4, m.t + 10, "cohort start", { "text-anchor": "end" });
+  txt(svg, W - m.r, H - 2, "weeks before cohort start", { "text-anchor": "end" });
   const lab = [];
   for (const { c, v } of series) {
     const d = v.map((val, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(val).toFixed(1)}`).join("");
-    s("path", { d, fill: "none", stroke: cvar(c), "stroke-width": c === "C8" ? 2.5 : 2, "stroke-linejoin": "round", "stroke-linecap": "round", class: "ln" }, svg);
+    s("path", { d, fill: "none", stroke: cvar(c), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", class: "ln" }, svg);
     const li = v.length - 1;
     s("circle", { cx: x(li), cy: y(v[li]), r: 4, fill: cvar(c), stroke: "var(--surface)", "stroke-width": 2 }, svg);
     lab.push({ c, x: x(li), y: y(v[li]), v: v[li] });
   }
-  lab.sort((a, b) => a.y - b.y); for (let i = 1; i < lab.length; i++) if (Math.abs(lab[i].y - lab[i - 1].y) < 13 && Math.abs(lab[i].x - lab[i - 1].x) < 60) lab[i].y = lab[i - 1].y + 13;
+  lab.sort((a, b) => a.y - b.y); for (let i = 1; i < lab.length; i++) if (lab[i].y - lab[i - 1].y < 13) lab[i].y = lab[i - 1].y + 13;
   for (const l of lab) txt(svg, l.x + 7, l.y + 4, `${l.c} ${fmt(l.v)}`, { class: "val" });
-  // crosshair
-  const tip = tipFor(host), cross = s("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink3)", "stroke-dasharray": "0", opacity: 0 }, svg);
+  const tip = tipFor(host), cross = s("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink3)", opacity: 0 }, svg);
   const hit = s("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
   hit.addEventListener("pointermove", e => {
     const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * W / r.width;
-    const d = Math.max(0, Math.min(X, Math.round((px - m.l) / (W - m.l - m.r) * X)));
-    cross.setAttribute("x1", x(d)); cross.setAttribute("x2", x(d)); cross.setAttribute("opacity", 1);
-    const rows = series.filter(s => s.v[d] != null).map(s => row(cvar(s.c), s.c, fmt(s.v[d]))).join("");
-    tip.show(`<div class="t">Day ${d}</div>${rows}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top);
+    const i = Math.max(0, Math.min(X, Math.round((px - m.l) / (W - m.l - m.r) * X))), dd = X - i;
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("opacity", 1);
+    const rows = series.filter(o => o.v[i] != null).map(o => row(cvar(o.c), o.c, fmt(o.v[i]))).join("");
+    tip.show(`<div class="t">${dd === 0 ? "Cohort start" : `T-${dd} days (${(dd / 7).toFixed(1)} wk)`}</div>${rows}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top);
   });
   hit.addEventListener("pointerleave", () => { tip.hide(); cross.setAttribute("opacity", 0); });
 });
 function paceRead() {
-  const P = D.projection, k = paceMetric, d = P.day, p = D.pacing;
-  const at = c => p[c][k][Math.min(d, p[c][k].length - 1)];
-  const nm = k === "cum" ? "applications" : "CCAT completions";
-  document.getElementById("pace-read").innerHTML = `At day ${d}: <b>C8 ${fmt(at("C8"))}</b> ${nm} vs C7 ${fmt(at("C7"))}, C6 ${fmt(at("C6"))}, C5 ${fmt(at("C5"))}. ` +
-    (k === "cum" ? `C6 took in ${pct(p.C6.cum.at(-1) - p.C6.cum[49], p.C6.cum.at(-1))} of its applications after day 49, so a late surge is normal.` : `C8 converts applications to CCATs faster than any earlier cohort. Part of that is the form-flow change, since C8 records start later in the flow.`);
+  const k = paceMetric, nm = k === "cum" ? "applications" : "CCAT completions", done = ["C5", "C6", "C7"];
+  const at = (c, w) => TC[c][k][TM.days - w * 7];
+  const live = COH.find(c => TC[c].today < 0);
+  const liveTxt = live ? (TC[live].today < -TM.days
+    ? `${live} starts ${fmtD(TC[live].start)} and is at T-${Math.round(-TC[live].today / 7)}w today with ${fmt(TC[live][k === "cum" ? "now" : "ccat_now"])} ${nm}, so it joins the chart in mid-November.`
+    : `${live} is at ${fmt(TC[live][k].at(-1))} ${nm}.`) : "";
+  document.getElementById("pace-read").innerHTML = `${nm[0].toUpperCase() + nm.slice(1)} at kickoff: ${done.map(c => `${c} <b>${fmt(at(c, 0))}</b>`).join(", ")}. ` +
+    (k === "cum" ? `Share landing in the last 4 weeks: ${done.map(c => `${c} ${pct(at(c, 0) - at(c, 4), at(c, 0))}`).join(", ")}. ` : "") + liveTxt;
 }
 paceRead();
 for (const [id, k] of [["pace-apps", "cum"], ["pace-ccat", "ccat_cum"]]) document.getElementById(id).addEventListener("click", () => {
@@ -545,7 +548,7 @@ mount("src", (host, W) => {
 const BL = [
   ["hard", "No live data path from this page", "Artifacts can't reach Firestore: the CSP blocks fetch, and there's no Firebase connector. This page is a snapshot rebuilt by tools/report/build.py. For live data, either HQ renders these charts itself from Firestore, or a daily scheduled job rebuilds and republishes this page."],
   ["hard", "No acceptedAt or signedAt timestamps", "Acceptance and signing times aren't recorded. admissionsUpdatedAt is overwritten on every admissions touch, and contractSyncedAt only exists on about 105 records. A true accept → signed lag chart needs decisionAt and contractSignedAt written once and never overwritten. DocuSign has completedDateTime and could backfill it."],
-  ["hard", "Cohort window dates aren't stored anywhere", "Pacing uses an inferred open date (the first week with 20 or more applications). HQ should store an official open and close date per cohort. Deferrals keep their original createdAt, which is why carry-overs are excluded here."],
+  ["hard", "Past cohort start dates aren't stored", "apply_admin/settings holds only the current cohort's startDate (C8: Feb 1, 2027). The C4–C7 start dates in the pacing chart are hard-coded from kickoff emails. HQ should keep startDate, applicationStartDate and applicationDeadline for every cohort in cohortHistory. The CCAT projection still uses an inferred intake-open date."],
   ["soft", "The form flow changed around C7 and C8", "C8 records are created at submission, while earlier cohorts start at step 1. So started-based rates aren't comparable across that boundary. A funnel on a common stage such as CCAT-taker is safer, or HQ could log a formStartedAt."],
   ["soft", "UTM coverage is 36%", "Two-thirds of applicants have no utmSource in applications_internal, so the source-quality view speaks only for tracked traffic. Also, sources are inconsistent (reddit/Reddit, referral/referrals, facebook/meta)."],
   ["soft", "C4 and C5 decisions predate adminDecision", "C4 has no decision or contract data. C5 acceptances are inferred from status. Cross-cohort accepted/signed comparisons are only apples-to-apples from C6 on."],
