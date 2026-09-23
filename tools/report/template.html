@@ -645,12 +645,12 @@ mount("srcbar", (host, W) => {
     </ul></div>
     <div><h4>What hasn't</h4><ul>
       <li><b>Applicant quality is down.</b> 40+ share is ${f0(share40("C7"))}% (C7) and ${f0(share40("C8"))}% (C8 so far), against ${f0(share40("C4"))}% in C4.</li>
-      <li><b>Rosters still lock at the buzzer.</b> About ${f0((r(L.C6[0] - L.C6[1], L.C6[0]) + r(L.C7[0] - L.C7[1], L.C7[0])) / 2)}% of each cohort signs in the final week.</li>
+      <li><b>Rosters fill late because applicants arrive late.</b> About ${f0((r(L.C6[0] - L.C6[1], L.C6[0]) + r(L.C7[0] - L.C7[1], L.C7[0])) / 2)}% of each cohort signs in the final week. Those people mostly applied inside T-4w, and contracts get signed within hours of going out, so the late signing isn't a chase problem.</li>
     </ul></div>
     <div><h4>Suggestions</h4><ul>
       <li><b>Buy quality, not volume.</b> ${lowSrc.map(o => o.src).join(", ")} brought ${fmt(lowApps)} applicants at ${f0(Math.min(...lowSrc.map(q)))}–${f0(Math.max(...lowSrc.map(q)))}% 40+. Judge channels on 40+ yield, and shift budget toward HubSpot re-engagement and referrals.</li>
       <li><b>Hold retakes to a higher bar.</b> Scores rise about ${R.median} points on a second try from practice alone, so a retake 40 is roughly a first-try ${40 - R.median}.</li>
-      <li><b>Start the C8 signing push at T-4w, not T-1w.</b> Chase every acceptance older than 30 days, so the final week confirms seats rather than recruits them.</li>
+      <li><b>Pull application volume forward.</b> The roster is capped by how many qualified applicants arrive before T-4w, not by how fast they sign. C8 is still ~${Math.round(-P.C8.today / 7)} weeks out, so top-of-funnel spend now is what fills it.</li>
     </ul></div></div>`;
 })();
 /* ---------- roadblocks ---------- */
