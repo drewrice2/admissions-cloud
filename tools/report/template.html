@@ -584,12 +584,10 @@ const isSurge = v => v.n >= 2 * vMed;
 const kfmt = n => n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n);
 const monLab = v => { const [yy, mm] = v.month.split("-"); return [new Date(+yy, +mm - 1, 1).toLocaleString("en-US", { month: "short" }), yy]; };
 mount("vel", (host, W) => {
-  const H = 262, m = { l: 36, r: 8, t: 30, b: 50 };
+  const H = 248, m = { l: 36, r: 8, t: 16, b: 50 };
   const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
   const vmax = 60, y = v => H - m.b - v / vmax * (H - m.t - m.b);
   const slot = (W - m.l - m.r) / VEL.length, bw = Math.min(26, slot - 6);
-  // surge month shading
-  VEL.forEach((v, i) => { if (isSurge(v)) { s("rect", { x: m.l + i * slot + 1, y: m.t - 4, width: slot - 2, height: H - m.b - m.t + 4, fill: "var(--neg-wash)" }, svg); txt(svg, m.l + i * slot + slot / 2, m.t - 8, "surge", { "text-anchor": "middle", class: "lbl", style: "fill:var(--neg-ink)" }); } });
   for (const t of [0, 15, 30, 45, 60]) { s("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); txt(svg, m.l - 6, y(t) + 4, t + "%", { "text-anchor": "end" }); }
   // average of complete months
   const done = VEL.filter(v => v.complete), avg = 100 * done.reduce((a, v) => a + v.within14, 0) / done.reduce((a, v) => a + v.n, 0);
@@ -616,7 +614,7 @@ mount("vel", (host, W) => {
   const w14ever = a => 100 * a.reduce((x, v) => x + v.within14, 0) / a.reduce((x, v) => x + v.ever, 0);
   const early = VEL.slice(0, 3), late = done.slice(-3);
   const items = [
-    `<b>Volume surges dilute velocity.</b> The surge months (${surge.map(v => monLab(v)[0]).join(", ")}, each at least 2× the median month's volume) convert at <b>${pool(surge).toFixed(0)}%</b>, against <b>${pool(calm).toFixed(0)}%</b> in other months. A push brings in many applicants who never test, so read a surge month's rate as a traffic-quality signal, not a nurture failure.`,
+    `<b>Volume surges dilute velocity.</b> The surge months (${surge.map(v => monLab(v)[0]).join(", ")}, red bars, each at least 2× the median month's volume) convert at <b>${pool(surge).toFixed(0)}%</b>, against <b>${pool(calm).toFixed(0)}%</b> in other months. A push brings in many applicants who never test, so read a surge month's rate as a traffic-quality signal, not a nurture failure.`,
     `<b>This isn't a summer slowdown.</b> June was the worst month (${vRate(VEL.find(v => v.month.endsWith("-06"))).toFixed(0)}%), but it was the C6 deadline surge. July and August, also summer, rose to ${vRate(VEL.find(v => v.month.endsWith("-07"))).toFixed(0)}% and ${vRate(VEL.find(v => v.month.endsWith("-08"))).toFixed(0)}%.`,
     `<b>Accelerating since the C7 form change.</b> ${streak.length - 1} straight months up: ${streak.map(v => `${monLab(v)[0]} ${Math.round(vRate(v))}%`).join(" → ")}. ${ll} is still maturing, and its rate can only go up as recent applicants finish their 14 days.`,
     `<b>Testing happens fast or not at all.</b> Among people who ever take the CCAT, the share who do it within 14 days went from ${w14ever(early).toFixed(0)}% (${monLab(early[0])[0]}–${monLab(early.at(-1))[0]}) to ${w14ever(late).toFixed(0)}% (${monLab(late[0])[0]}–${monLab(late.at(-1))[0]}). The lever is getting people to test at all. After day 14, re-engagement is a rescue.`,
