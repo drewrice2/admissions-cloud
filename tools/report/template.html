@@ -199,7 +199,7 @@ td.num{font-family:var(--mono)}
 </section>
 
 <section>
-  <h2>Operations and velocity</h2>
+  <h2>Velocity</h2>
   <div class="grid2">
     <div class="card wide" data-spec="ccat_velocity">
       <h3>CCAT velocity by application month</h3>
@@ -214,14 +214,6 @@ td.num{font-family:var(--mono)}
 
 
 
-    <div class="card wide" data-spec="unsigned_aging">
-      <h3>Accepted but unsigned, by days since acceptance</h3>
-      <p class="why">Accepted candidates who haven't signed yet, bucketed by how long ago they were accepted. Every accepted candidate already has an agreement waiting, so the only question is how long they've been sitting on it relative to the cohort's start date.</p>
-      <div class="legend" id="uns-legend"></div>
-      <div class="chart" id="uns"></div>
-      <div class="read" id="uns-read"></div>
-      <p class="foot">Age is measured from <code>admissionsUpdatedAt</code> (last admissions touch), so it can understate how long someone has held the offer.</p>
-    </div>
   </div>
 </section>
 
@@ -314,12 +306,6 @@ td.num{font-family:var(--mono)}
    "what": "Group by `createdAt` month: % with first_ccat − createdAt ≤ 14 days. MoM bars = difference in percentage points. Surge month = applicants ≥ 2× the median month.",
    "fields": "`createdAt`, first_ccat.",
    "caveats": "The current month is still maturing and can only rise."
-  },
-  "unsigned_aging": {
-   "title": "Accepted but unsigned",
-   "what": "accepted AND NOT `contractSigned`, bucketed by days since `admissionsUpdatedAt` (0–7, 8–14, 15–30, 31+).",
-   "fields": "accepted, `contractSigned`, `admissionsUpdatedAt`.",
-   "caveats": "Every accepted candidate already has an agreement out, so envelope presence isn't a signal."
   },
   "retake_delta": {
    "title": "Retake delta",
@@ -629,39 +615,6 @@ mount("vel-mom", (host, W) => {
     hit.addEventListener("pointerleave", () => tip.hide());
   });
 });
-/* ---------- 8. unsigned ---------- */
-const UNS = [["0-7", "0–7d", "var(--neu)"], ["8-14", "8–14d", "var(--neu)"], ["15-30", "15–30d", "var(--warn)"], ["31+", "31+d", "var(--neg)"], ["unknown", "no date", "var(--mute)"]];
-const unsN = (c, k) => D.unsigned[c][k].sent + D.unsigned[c][k]["not sent"];
-legend("uns-legend", UNS.map(u => [u[2], u[1] + (u[0] === "unknown" ? "" : " since acceptance")]));
-mount("uns", (host, W) => {
-  const U = D.unsigned, cs = Object.keys(U), panelW = W < 560 ? W : W / 2, H0 = 170, H = (W < 560 ? cs.length : 1) * (H0 + 10);
-  const svg = s("svg", { viewBox: `0 0 ${W} ${H}` }, host); const tip = tipFor(host);
-  const vmax = Math.max(4, niceMax(Math.max(...cs.flatMap(c => UNS.map(u => unsN(c, u[0]))))));
-  cs.forEach((c, i) => {
-    const ox = W < 560 ? 0 : i * panelW, oy = W < 560 ? i * (H0 + 10) : 0, m = { l: 26, r: 12, t: 22, b: 22 };
-    const y = v => oy + H0 - m.b - v / vmax * (H0 - m.t - m.b), st = TC[c].start, dd = TC[c].today;
-    const tot = UNS.reduce((a, u) => a + unsN(c, u[0]), 0);
-    txt(svg, ox + 4, oy + 12, `${c} · ${tot} accepted, unsigned · ${dd >= 0 ? `started ${fmtD(st)}` : `T-${Math.round(-dd / 7)}w to start`}`, { class: "lbl" });
-    for (const t of ticks(vmax, vmax <= 8 ? vmax / 2 : 4)) { s("line", { x1: ox + m.l, x2: ox + panelW - m.r, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg); txt(svg, ox + m.l - 5, y(t) + 4, Math.round(t), { "text-anchor": "end" }); }
-    const slot = (panelW - m.l - m.r) / UNS.length, bw = Math.min(24, slot - 10);
-    UNS.forEach((u, j) => {
-      const v = unsN(c, u[0]), bx = ox + m.l + j * slot + (slot - bw) / 2;
-      txt(svg, bx + bw / 2, oy + H0 - 6, u[1], { "text-anchor": "middle" });
-      if (v) { s("path", { d: vbar(bx, y(v), bw, y(0) - y(v)), fill: u[2] }, svg); txt(svg, bx + bw / 2, y(v) - 5, v, { "text-anchor": "middle", class: "val" }); }
-      const hit = s("rect", { x: ox + m.l + j * slot, y: oy + m.t, width: slot, height: H0 - m.t - m.b, fill: "transparent" }, svg);
-      hit.addEventListener("pointermove", e => tip.show(`<div class="t">${c} · ${u[1]} since acceptance</div>${row(u[2], "accepted, unsigned", v)}`, e.clientX - host.getBoundingClientRect().left, e.clientY - host.getBoundingClientRect().top));
-      hit.addEventListener("pointerleave", () => tip.hide());
-    });
-  });
-});
-(() => {
-  const tot = c => UNS.reduce((a, u) => a + unsN(c, u[0]), 0), SD = ["C6", "C7"].filter(c => TC[c].signed_dated);
-  const late = SD.map(c => `${c} ${pct(atW(c, "signed_cum", 0) - atW(c, "signed_cum", 2), atW(c, "signed_cum", 0))}`).join(", ");
-  document.getElementById("uns-read").innerHTML = `<ul class="steps">
-    <li><b>C7's ${tot("C7")} unsigned are past kickoff.</b> C7 started ${fmtD(TC.C7.start)}, so these people are no longer "slow to sign". Each one should be closed out as withdrawn or explicitly deferred to C8.</li>
-    <li><b>C8's ${tot("C8")} aren't late yet.</b> ${unsN("C8", "31+")} were accepted more than 30 days ago, but C8 is still about ${Math.round(-TC.C8.today / 7)} weeks from kickoff. Share of signatures that landed in the final two weeks before start: ${late}. Signing clusters at the deadline, so an unsigned C8 acceptance today is normal.</li>
-    <li><b>What to watch:</b> once C8 is inside T-4w, anyone accepted more than 30 days earlier who still hasn't signed is the at-risk list.</li></ul>`;
-})();
 /* ---------- 9. retake ---------- */
 mount("retake", (host, W) => {
   const R = D.retake, H = 210, m = { l: 34, r: 8, t: 14, b: 30 }, hs = R.hist;
