@@ -56,6 +56,10 @@ section{display:flex;flex-direction:column;gap:18px}
 .read b{font-weight:600}
 .foot{font-size:12px;color:var(--ink3);margin:0}
 .steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px}
+.tldr{gap:12px}
+.tldr h4{margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.tldr ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.tldr .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
 .sub{font-size:13px;font-weight:600;color:var(--ink2);margin-top:8px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink2)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -99,6 +103,11 @@ td.num{font-family:var(--mono)}
 </header>
 
 <div class="tiles" id="tiles"></div>
+
+<div class="card tldr">
+  <h3>TL;DR</h3>
+  <div id="tldr"></div>
+</div>
 
 <section>
   <h2>Cohort over cohort</h2>
@@ -619,6 +628,31 @@ mount("srcbar", (host, W) => {
   const rows = D.sources.filter(r => r.src !== "(none)").sort((a, b) => b.apps - a.apps).map(r => ({ label: r.src, v: { p40: r.pass40, sub: r.ccat - r.pass40, none: r.apps - r.ccat } }));
   stackRows(host, W, rows, [["p40", "var(--o4)", "CCAT 40+"], ["sub", "var(--o2)", "CCAT under 40"], ["none", "var(--neutral)", "no CCAT"]], { lw: Math.min(150, W * .34), rpad: 44, inkOn: k => (k === "none" ? "var(--ink)" : "#fff") });
 });
+/* ---------- TL;DR ---------- */
+(() => {
+  const F = D.funnel, B = D.bands, P = TM.cohorts, L = TM.ledger, V = D.velocity;
+  const r = (a, b) => b ? (100 * a / b) : 0, f1 = x => x.toFixed(1), f0 = x => Math.round(x);
+  const share40 = c => { const t = ["<32", "32-34", "35-39", "40+"].reduce((a, k) => a + B[c][k], 0); return r(B[c]["40+"], t); };
+  const at4 = c => r(P[c].cum[TM.days - 28], P[c].cum[TM.days]);
+  const src = D.sources.filter(o => o.src !== "(none)"), q = o => r(o.pass40, o.ccat);
+  const lowSrc = src.slice().sort((a, b) => q(a) - q(b)).slice(0, 3), lowApps = lowSrc.reduce((a, o) => a + o.apps, 0);
+  const lastV = V.at(-1), prevV = V.at(-4);
+  const R = D.retake;
+  document.getElementById("tldr").innerHTML = `<div class="cols">
+    <div><h4>What improved</h4><ul>
+      <li><b>C7 converted ${f1(r(F.C7.signed, F.C7.started) / r(F.C6.signed, F.C6.started))}× better end to end than C6</b>: applied → signed ${f1(r(F.C7.signed, F.C7.started))}% vs ${f1(r(F.C6.signed, F.C6.started))}%, on about a third of the volume.</li>
+      <li><b>Faster everywhere.</b> CCAT within 14 days rose ${f0(r(prevV.within14, prevV.n))}% → ${f0(r(lastV.within14, lastV.n))}%+ over the last three months. Median decision time is ${D.sla.C7.median}d (C7). C7 had ${f0(at4("C7"))}% of its applications in by T-4w, against ${f0(at4("C6"))}% for C6.</li>
+    </ul></div>
+    <div><h4>What hasn't</h4><ul>
+      <li><b>Applicant quality is down.</b> 40+ share is ${f0(share40("C7"))}% (C7) and ${f0(share40("C8"))}% (C8 so far), against ${f0(share40("C4"))}% in C4.</li>
+      <li><b>Rosters still lock at the buzzer.</b> About ${f0((r(L.C6[0] - L.C6[1], L.C6[0]) + r(L.C7[0] - L.C7[1], L.C7[0])) / 2)}% of each cohort signs in the final week.</li>
+    </ul></div>
+    <div><h4>Suggestions</h4><ul>
+      <li><b>Buy quality, not volume.</b> ${lowSrc.map(o => o.src).join(", ")} brought ${fmt(lowApps)} applicants at ${f0(Math.min(...lowSrc.map(q)))}–${f0(Math.max(...lowSrc.map(q)))}% 40+. Judge channels on 40+ yield, and shift budget toward HubSpot re-engagement and referrals.</li>
+      <li><b>Raise the retake bar.</b> A retake adds a median +${R.median} points, so a second-attempt 40 is weaker evidence. Require more on attempt 2, or weight attempt 1.</li>
+      <li><b>Start the C8 signing push at T-4w, not T-1w.</b> Chase every acceptance older than 30 days, so the final week confirms seats rather than recruits them.</li>
+    </ul></div></div>`;
+})();
 /* ---------- roadblocks ---------- */
 const BL = [
   ["hard", "No live data path from this page", "Artifacts can't reach Firestore: the CSP blocks fetch, and there's no Firebase connector. This page is a snapshot rebuilt by tools/report/build.py. For live data, either HQ renders these charts itself from Firestore, or a daily scheduled job rebuilds and republishes this page."],
